@@ -1,31 +1,41 @@
 from __future__ import division
 import os
 import math
-import random
 import numpy as np
+import argparse
 
 from scipy.spatial.distance import pdist, squareform
 
-HEnergyList = []
-CEnergyList = []
-OEnergyList = []
-HydrogenCounter = 0
-CarbonCounter = 0
-OxygenCounter = 0
 CarbonWritten = 0
 OxygenWritten = 0
 HydrogenWritten = 0
-OutputDimension2 = 0
+HEnergyList = []
+CEnergyList = []
+OEnergyList = []
 
 
-def calculate_fcRij(distance):
-    global Cutoff
+def list_builder(InputExtension, OutputExtension):
+    OutputList = []
+    SubmissionScripts = []
+    counter = 0
+    for file in os.listdir(os.curdir):
+        if file.endswith(OutputExtension):
+            OutputList.append(file)
+        if file.endswith(InputExtension):
+            SubmissionScripts.append(file)
+            counter += 1
+        if counter >= 500:
+            break
+    return OutputList, SubmissionScripts
+
+
+def calculate_fcRij(distance, cutoff):
     if distance <= 1e-7:
         pass
     if distance > cutoff:
         fcRij = 0
     else:
-        fcRij = 0.5 * (math.cos(math.pi * distance / Cutoff) + 1)
+        fcRij = 0.5 * (math.cos(math.pi * distance / cutoff) + 1)
     return fcRij
 
 # Removed because it's redundant if I calculate fcRij
@@ -99,6 +109,7 @@ def calculate_angle(distance12, distance13, distance23):
 
 
 def gen_energy_list(int_file):
+    global CEnergyList, HEnergyList, OEnergyList
     with open(int_file, 'r') as atomic_file:
         atomic_lines = atomic_file.readlines()
         for line in atomic_lines:
@@ -127,6 +138,7 @@ def label_to_charge(label):
 def retrieve_coordinates(wavefunction, Cutoff):
     with open(wavefunction, 'r') as waveinput:
         wavelines = waveinput.readlines()
+        label_list = []
         x_list = []
         y_list = []
         z_list = []
@@ -148,12 +160,12 @@ def retrieve_coordinates(wavefunction, Cutoff):
     matrix_cutoff[matrix_cutoff >= Cutoff] = 0
     return label_list, distance_matrix, matrix_cutoff
 
+
 def gen_symm_functions(matrix, labels, matrix_cutoff):
     for i in range(0, len(matrix)):
         global CarbonWritten, OxygenWritten, HydrogenWritten
-        data = []
         fcRij_list = []
-        fcRij_total = 0.0
+        symm_function = []
         for distance in matrix[i]:
             if distance > 1e-7:
                 symm_function.append(distance)
@@ -176,76 +188,128 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
                     G5_Total += calculate_g5(fcRij, distance, angle)
         if atom_label == 'C':
             CarbonArray[CarbonWritten] = symm_function
-            CarbonWritten+=1
+            CarbonWritten += 1
         if atom_label == 'H':
             HydrogenArray[HydrogenWritten] = symm_function
-            HydrogenWritten+=1
+            HydrogenWritten += 1
         if atom_label == 'O':
             OxygenArray[OxygenWritten] = symm_function
             OxygenWritten += 1
 
 
-Cutoff = input('Enter Cutoff in angstroms: ')
-G1flag = input('Use G1? (Y/N)')
-G2flag = input('Use G2? (Y/N)')
-G3flag = input('Use G3? (Y/N)')
-G4flag = input('Use G4? (Y/N)')
-G5flag = input('Use G5? (Y/N)')
-if G1flag:
-    OutputDimension2 += 1
-if G2flag:
-    OutputDimension2 += 1
-if G3flag:
-    OutputDimension2 += 1
-if G4flag:
-    OutputDimension2 += 1
-if G5flag:
-    OutputDimension2 += 1
+def __main__():
+    HydrogenCounter = 0
+    CarbonCounter = 0
+    OxygenCounter = 0
+    OutputDimension2 = 0
+	#convert to argparse
+    Cutoff = input('Enter Cutoff in bohr: ')
+    G1flag = input('Use G1? (Y/N)')
+    G2flag = input('Use G2? (Y/N)')
+    G3flag = input('Use G3? (Y/N)')
+    G4flag = input('Use G4? (Y/N)')
+    G5flag = input('Use G5? (Y/N)')
+    if G1flag:
+        OutputDimension2 += 1
+    if G2flag:
+        OutputDimension2 += 1
+    if G3flag:
+        OutputDimension2 += 1
+    if G4flag:
+        OutputDimension2 += 1
+    if G5flag:
+        OutputDimension2 += 1
+    master_dict = {}
+    for atomfilename in filelist:
+        if atomfilename.endswith('int'):
+            wavefunction = atomfilename[0:21]
+            print str(wavefunction)
+            if wavefunction not in master_dict:
+                atomfilelist = [atomfilename]
+                master_dict[wavefunction] = atomfilelist
+            else:
+                atomfilelist = master_dict[wavefunction]
+                atomfilelist.append(atomfilename)
+                master_dict[wavefunction] = atomfilelist
+            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnC" in atomfilename and atomfilename.endswith('.int'):
+                CarbonCounter += 1
+            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnH" in atomfilename and atomfilename.endswith('.int'):
+                HydrogenCounter += 1
+            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnO" in atomfilename and atomfilename.endswith('.int'):
+                OxygenCounter += 1
 
-master_dict = {}
+    keylist = master_dict.keys()
+    keylist.sort()
+    for wavefunction in keylist:
+        print wavefunction
+        labels, distance_matrix = retrieve_coordinates(wavefunction)
+        gen_symm_functions(distance_matrix, labels)
+        for intfile in master_dict[wavefunction]:
+            gen_energy_list(intfile)
 
-for atomfilename in filelist:
-    if atomfilename.endswith('int'):
-        wavefunction = atomfilename[0:21]
-        print str(wavefunction)
-        if wavefunction not in master_dict:
-            atomfilelist = [atomfilename]
-            master_dict[wavefunction] = atomfilelist
-        else:
-            atomfilelist = master_dict[wavefunction]
-            atomfilelist.append(atomfilename)
-            master_dict[wavefunction] = atomfilelist
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnC" in atomfilename and atomfilename.endswith('.int'):
-            CarbonCounter += 1
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnH" in atomfilename and atomfilename.endswith('.int'):
-            HydrogenCounter += 1
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnO" in atomfilename and atomfilename.endswith('.int'):
-            OxygenCounter += 1
+    HydrogenArray = np.zeros([HydrogenCounter, OutputDimension2])
+    CarbonArray = np.zeros([CarbonCounter, OutputDimension2])
+    OxygenArray = np.zeros([OxygenCounter, OutputDimension2])
 
-keylist = master_dict.keys()
-keylist.sort()
-for wavefunction in keylist:
-    print wavefunction
-    labels, distance_matrix = retrieve_coordinates(wavefunction)
-    gen_symm_functions(distance_matrix, labels)
-    for intfile in master_dict[wavefunction]:
-        gen_energy_list(intfile)
+    HydrogenEnergyOut = np.asarray(HEnergyList)
+    CarbonEnergyOut = np.asarray(CEnergyList)
+    OxygenEnergyOut = np.asarray(OEnergyList)
 
-HydrogenArray = np.zeros([HydrogenCounter, OutputDimension2])
-CarbonArray = np.zeros([CarbonCounter, OutputDimension2])
-OxygenArray = np.zeros([OxygenCounter, OutputDimension2])
+    print "Hydrogen", HydrogenArray.shape, HydrogenEnergyOut.shape
+    print "Carbon", CarbonArray.shape, CarbonEnergyOut.shape
+    print "Oxygen", OxygenArray.shape, OxygenEnergyOut.shape
 
-HydrogenEnergyOut = np.asarray(HEnergyList)
-CarbonEnergyOut = np.asarray(CEnergyList)
-OxygenEnergyOut = np.asarray(OEnergyList)
+    np.save(('H_Out_Symmetry_Functions'), HydrogenArray)
+    np.save(('C_Out_Symmetry_Functions'), CarbonArray)
+    np.save(('O_Out_Symmetry_Functions'), OxygenArray)
+    np.save(('Energy_H_Out_Symmetry_Functions'), HydrogenEnergyOut)
+    np.save(('Energy_C_Out_Symmetry_Functions'), CarbonEnergyOut)
+    np.save(('Energy_O_Out_Symmetry_Functions'), OxygenEnergyOut)
 
-print "Hydrogen", HydrogenArray.shape, HydrogenEnergyOut.shape
-print "Carbon", CarbonArray.shape, CarbonEnergyOut.shape
-print "Oxygen", OxygenArray.shape, OxygenEnergyOut.shape
 
-np.save(('H_Out_Symmetry_Functions'), HydrogenArray)
-np.save(('C_Out_Symmetry_Functions'), CarbonArray)
-np.save(('O_Out_Symmetry_Functions'), OxygenArray)
-np.save(('Energy_H_Out_Symmetry_Functions'), HydrogenEnergyOut)
-np.save(('Energy_C_Out_Symmetry_Functions'), CarbonEnergyOut)
-np.save(('Energy_O_Out_Symmetry_Functions'), OxygenEnergyOut)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into neural network inputs')
+    parser.add_argument('-s', '--sleep-interval',
+                        default=6,
+                        type=int,
+                        dest='UserTime',
+                        help='Set delay before the job manager is allowed to restart, in hours, Default=6')
+    parser.add_argument('-x', '--extensions',
+                        default='.int',
+                        dest='InputExtension',
+                        help='Extension(s) of files that are job input scripts')
+    parser.add_argument('--G1',
+                        dest='G1flag',
+                        help='Set flag to calculate G1, default=True',
+                        type=bool,
+                        default=True)
+    parser.add_argument('--G2',
+                        dest='G2flag',
+                        help='Set flag to calculate G2, default=False',
+                        type=bool,
+                        default=False)
+    parser.add_argument('--G3',
+                        dest='G3flag',
+                        help='Set flag to calculate G3, default=False',
+                        type=bool,
+                        default=False)
+    parser.add_argument('--G4',
+                        dest='G4flag',
+                        help='Set flag to calculate G4, default=False',
+                        type=bool,
+                        default=False)
+    parser.add_argument('--G5',
+                        dest='G3flag',
+                        help='Set flag to calculate G5, default=False',
+                        type=bool,
+                        default=False)
+    args = parser.parse_args()
+
+    Outputlist, SubmissionScripts = list_builder(args.InputExtension, args.PrimaryOutputExtension)
+    main(args, SubmissionScripts)
+    if dest_but_no_ext:
+        raise ValueError('no extension provided with destination')
+    if ext_but_no_dest:
+        raise ValueError('no destination provided with extension')
+    if dest_and_exist:
+        file_mover(args.Destination, args.ExtensionList, args.FileSizeThreshold, Outputlist)
