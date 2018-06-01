@@ -271,9 +271,9 @@ def __main__(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs')
     parser.add_argument('-x', '--extension',
-                        default='.int',
                         dest='InputExtension',
-                        help='Extension of aimpac output scripts')
+                        help='Extension of aimpac output scripts',
+                        default='.int')
     parser.add_argument('-w', '--wavefunction',
                         default='.wfn',
                         dest='WaveFunctionExtension',
@@ -303,4 +303,14 @@ if __name__ == '__main__':
                         help='Set flag to calculate G5, default=False',
                         type=bool,
                         default=False)
+    parser.add_argument('-r', '-resolution',
+                        dest='AngularResolution',
+                        help='Set angular resolution, default=5.0',
+                        type=float,
+                        default=5.0)
+    parser.add_argument('-g', '--gausswidth',
+                        dest='GaussWidth',
+                        help='Set width of gaussian',
+                        type=float,
+                        default=3.0)
     args = parser.parse_args()
