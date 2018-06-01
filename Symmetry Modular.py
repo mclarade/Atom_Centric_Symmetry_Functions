@@ -14,19 +14,15 @@ CEnergyList = []
 OEnergyList = []
 
 
-def list_builder(InputExtension, OutputExtension):
-    OutputList = []
-    SubmissionScripts = []
-    counter = 0
+def list_builder(InputExtension, WaveFunctionExtension):
+    InputList = []
+    WaveFunctionList = []
     for file in os.listdir(os.curdir):
-        if file.endswith(OutputExtension):
-            OutputList.append(file)
         if file.endswith(InputExtension):
-            SubmissionScripts.append(file)
-            counter += 1
-        if counter >= 500:
-            break
-    return OutputList, SubmissionScripts
+            InputList.append(file)
+        if file.endswith(WaveFunctionExtension):
+            WaveFunctionList.append(file)
+    return InputList, WaveFunctionList
 
 
 def calculate_fcRij(distance, cutoff):
@@ -38,11 +34,12 @@ def calculate_fcRij(distance, cutoff):
         fcRij = 0.5 * (math.cos(math.pi * distance / cutoff) + 1)
     return fcRij
 
-# Removed because it's redundant if I calculate fcRij
-# def calculate_g1(fcRij):
-#     G1 = 0
-#     G1 += fcRij
-#     eturn G1
+
+# redundant, but left in for clarity
+def calculate_g1(fcRij):
+    G1 = 0
+    G1 += fcRij
+    return G1
 
 
 def calculate_g2(fcRij, distance):
@@ -60,7 +57,7 @@ def calculate_g3(fcRij, distance):
 
 
 def calculate_g4(fcRij, distance, angle):
-#There are problems with the angle calculations
+# There are problems with the angle calculations
     G4 = 0
     global gausswidth, Lamba, angular_resolution
     G4 += (1 + Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
@@ -162,6 +159,16 @@ def retrieve_coordinates(wavefunction, Cutoff):
 
 
 def gen_symm_functions(matrix, labels, matrix_cutoff):
+    if args.G1flag == 'Y':
+        G1_Total = 0
+    if args.G2flag == 'Y':
+        G2_Total = 0
+    if args.G3flag == 'Y':
+        G3_Total = 0
+    if args.G4flag == 'Y':
+        G4_Total = 0
+    if args.G5flag == 'Y':
+        G5_Total = 0
     for i in range(0, len(matrix)):
         global CarbonWritten, OxygenWritten, HydrogenWritten
         fcRij_list = []
@@ -172,17 +179,17 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
                 fcRij_list.append(calculate_fcRij(distance))
             atom_label = labels[i][0]
         for fcRij in fcRij_list:
-            if G1flag == 'Y':
-                G1_Total += fcRij
-            if G2flag == 'Y':
+            if args.G1flag == 'Y':
+                G1_Total += calculate_g1(fcRij)
+            if args.G2flag == 'Y':
                 G2_Total += calculate_g2(fcRij, distance)
-            if G3flag == 'Y':
+            if args.G3flag == 'Y':
                 G3_Total += calculate_g3(fcRij, distance)
-            if G4flag == 'Y':
+            if args.G4flag == 'Y':
                 angles = detect_angle(matrix, matrix_cutoff)
                 for angle in angles:
                     G4_Total += calculate_g4(fcRij, distance, angle)
-            if G5flag == 'Y':
+            if args.G5flag == 'Y':
                 angles = detect_angle(matrix, matrix_cutoff)
                 for angle in angles:
                     G5_Total += calculate_g5(fcRij, distance, angle)
@@ -197,46 +204,40 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             OxygenWritten += 1
 
 
-def __main__():
+def __main__(args):
     HydrogenCounter = 0
     CarbonCounter = 0
     OxygenCounter = 0
     OutputDimension2 = 0
-	#convert to argparse
-    Cutoff = input('Enter Cutoff in bohr: ')
-    G1flag = input('Use G1? (Y/N)')
-    G2flag = input('Use G2? (Y/N)')
-    G3flag = input('Use G3? (Y/N)')
-    G4flag = input('Use G4? (Y/N)')
-    G5flag = input('Use G5? (Y/N)')
-    if G1flag:
+    if args.G1flag:
         OutputDimension2 += 1
-    if G2flag:
+    if args.G2flag:
         OutputDimension2 += 1
-    if G3flag:
+    if args.G3flag:
         OutputDimension2 += 1
-    if G4flag:
+    if args.G4flag:
         OutputDimension2 += 1
-    if G5flag:
+    if args.G5flag:
         OutputDimension2 += 1
     master_dict = {}
-    for atomfilename in filelist:
-        if atomfilename.endswith('int'):
-            wavefunction = atomfilename[0:21]
-            print str(wavefunction)
-            if wavefunction not in master_dict:
-                atomfilelist = [atomfilename]
-                master_dict[wavefunction] = atomfilelist
-            else:
-                atomfilelist = master_dict[wavefunction]
-                atomfilelist.append(atomfilename)
-                master_dict[wavefunction] = atomfilelist
-            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnC" in atomfilename and atomfilename.endswith('.int'):
-                CarbonCounter += 1
-            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnH" in atomfilename and atomfilename.endswith('.int'):
-                HydrogenCounter += 1
-            if atomfilename.startswith('dsC7O2H10nsd') and ".wfnO" in atomfilename and atomfilename.endswith('.int'):
-                OxygenCounter += 1
+    InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
+    for atomfilename in InputList:
+        # Make this part more general
+        wavefunction = atomfilename.split('.wfn')
+        print str(wavefunction)
+        if wavefunction not in master_dict:
+            atomfilelist = [atomfilename]
+            master_dict[wavefunction] = atomfilelist
+        else:
+            atomfilelist = master_dict[wavefunction]
+            atomfilelist.append(atomfilename)
+            master_dict[wavefunction] = atomfilelist
+        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnC" in atomfilename and atomfilename.endswith('.int'):
+            CarbonCounter += 1
+        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnH" in atomfilename and atomfilename.endswith('.int'):
+            HydrogenCounter += 1
+        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnO" in atomfilename and atomfilename.endswith('.int'):
+            OxygenCounter += 1
 
     keylist = master_dict.keys()
     keylist.sort()
@@ -255,9 +256,9 @@ def __main__():
     CarbonEnergyOut = np.asarray(CEnergyList)
     OxygenEnergyOut = np.asarray(OEnergyList)
 
-    print "Hydrogen", HydrogenArray.shape, HydrogenEnergyOut.shape
-    print "Carbon", CarbonArray.shape, CarbonEnergyOut.shape
-    print "Oxygen", OxygenArray.shape, OxygenEnergyOut.shape
+    # print "Hydrogen", HydrogenArray.shape, HydrogenEnergyOut.shape
+    # print "Carbon", CarbonArray.shape, CarbonEnergyOut.shape
+    # print "Oxygen", OxygenArray.shape, OxygenEnergyOut.shape
 
     np.save(('H_Out_Symmetry_Functions'), HydrogenArray)
     np.save(('C_Out_Symmetry_Functions'), CarbonArray)
@@ -268,16 +269,15 @@ def __main__():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into neural network inputs')
-    parser.add_argument('-s', '--sleep-interval',
-                        default=6,
-                        type=int,
-                        dest='UserTime',
-                        help='Set delay before the job manager is allowed to restart, in hours, Default=6')
-    parser.add_argument('-x', '--extensions',
+    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs')
+    parser.add_argument('-x', '--extension',
                         default='.int',
                         dest='InputExtension',
-                        help='Extension(s) of files that are job input scripts')
+                        help='Extension of aimpac output scripts')
+    parser.add_argument('-w', '--wavefunction',
+                        default='.wfn',
+                        dest='WaveFunctionExtension',
+                        help='Extension of wavefunction files')
     parser.add_argument('--G1',
                         dest='G1flag',
                         help='Set flag to calculate G1, default=True',
@@ -304,12 +304,3 @@ if __name__ == '__main__':
                         type=bool,
                         default=False)
     args = parser.parse_args()
-
-    Outputlist, SubmissionScripts = list_builder(args.InputExtension, args.PrimaryOutputExtension)
-    main(args, SubmissionScripts)
-    if dest_but_no_ext:
-        raise ValueError('no extension provided with destination')
-    if ext_but_no_dest:
-        raise ValueError('no destination provided with extension')
-    if dest_and_exist:
-        file_mover(args.Destination, args.ExtensionList, args.FileSizeThreshold, Outputlist)
