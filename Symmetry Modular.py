@@ -75,38 +75,22 @@ def calculate_g5(fcRij, distance, angle):
     return G5
 
 
-def detect_angle(atomic_coordinates, atomic_coordinates_cutoff):
+def detect_and_retrieve_angle(atomic_coordinates_cutoff):
     neighbors_list = []
-    neighbors_index_list = []
+    angle_list = []
     for i, element in enumerate(atomic_coordinates_cutoff):
         if element >= 1e-7:
             neighbors_list.append(element)
-            neighbors_index_list.append(i)
-    neighbor_combination_list = combinations(neighbors_list, 2)
-    for combo in neighbor_combination_list:
-        distance3 = atomic_coordinates(combo)
+    neighbor_combinations = combinations(neighbors_list, 2)
+    for combo in neighbor_combinations:
+        distance3 = atomic_coordinates_cutoff[combo]
         angle = calculate_angle(combo,distance3)
-    # if len(neighbors_list) == 2:
-    #     distance12 = neighbors_list[0]
-    #     distance13 = neighbors_list[1]
-    #     distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
-    #     angle213 = calculate_angle(distance12, distance13, distance23)
-    #     return (angle213,)
-    # if len(neighbors_list) == 3:
-    #     distance12 = neighbors_list[0]
-    #     distance13 = neighbors_list[1]
-    #     distance14 = neighbors_list[2]
-    #     distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
-    #     distance24 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[2]]
-    #     distance34 = atomic_coordinates[neighbors_index_list[1], neighbors_index_list[2]]
-    #     angle213 = calculate_angle(distance12, distance13, distance23)
-    #     angle214 = calculate_angle(distance12, distance14, distance24)
-    #     angle314 = calculate_angle(distance13, distance14, distance34)
-    #     return (angle213, angle214, angle314)
+        angle_list.append(angle)
+    return angle_list
 
-#angles in radians
-def calculate_angle((dists_from_central_atom), distance_between_other_atoms):
-    angle = math.acos((distance12 ** 2 + distance13 ** 2 - distance23 ** 2) / (2 * distance12 * distance13))
+
+def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
+    angle = math.acos((dists_from_central_atom[0] ** 2 + dists_from_central_atom[1] ** 2 - distance_between_other_atoms ** 2) / (2 * dists_from_central_atom[0] * dists_from_central_atom[1]))
     return angle
 
 
@@ -204,11 +188,11 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if args.G3flag == 'Y':
                 G3_Total += calculate_g3(fcRij, distance)
             if args.G4flag == 'Y':
-                angles = detect_angle(matrix, matrix_cutoff)
+                angles = detect_and_retrieve_angle(matrix_cutoff)
                 for angle in angles:
                     G4_Total += calculate_g4(fcRij, distance, angle)
             if args.G5flag == 'Y':
-                angles = detect_angle(matrix, matrix_cutoff)
+                angles = detect_and_retrieve_angle(matrix_cutoff)
                 for angle in angles:
                     G5_Total += calculate_g5(fcRij, distance, angle)
         if atom_label == 'C':
@@ -283,9 +267,9 @@ if __name__ == '__main__':
                         help='Extension of aimpac output scripts',
                         default='.int')
     parser.add_argument('-w', '--wavefunction',
-                        default='.wfn',
                         dest='WaveFunctionExtension',
-                        help='Extension of wavefunction files')
+                        help='Extension of wavefunction files',
+                        default='.wfn')
     parser.add_argument('--G1',
                         dest='G1flag',
                         help='Set flag to calculate G1, default=True',
