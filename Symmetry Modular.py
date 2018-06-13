@@ -3,6 +3,7 @@ import os
 import math
 import numpy as np
 import argparse
+from itertools import combinations
 
 from scipy.spatial.distance import pdist, squareform
 
@@ -44,7 +45,7 @@ def calculate_g1(fcRij):
 
 def calculate_g2(fcRij, distance):
     G2 = 0
-    global gausswidth
+    args.gausswidth
     G2 += math.exp(gausswidth * (distance) ** 2) * fcRij
     return G2
 
@@ -81,26 +82,30 @@ def detect_angle(atomic_coordinates, atomic_coordinates_cutoff):
         if element >= 1e-7:
             neighbors_list.append(element)
             neighbors_index_list.append(i)
-    if len(neighbors_list) == 2:
-        distance12 = neighbors_list[0]
-        distance13 = neighbors_list[1]
-        distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
-        angle213 = calculate_angle(distance12, distance13, distance23)
-        return (angle213,)
-    if len(neighbors_list) == 3:
-        distance12 = neighbors_list[0]
-        distance13 = neighbors_list[1]
-        distance14 = neighbors_list[2]
-        distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
-        distance24 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[2]]
-        distance34 = atomic_coordinates[neighbors_index_list[1], neighbors_index_list[2]]
-        angle213 = calculate_angle(distance12, distance13, distance23)
-        angle214 = calculate_angle(distance12, distance14, distance24)
-        angle314 = calculate_angle(distance13, distance14, distance34)
-        return (angle213, angle214, angle314)
+    neighbor_combination_list = combinations(neighbors_list, 2)
+    for combo in neighbor_combination_list:
+        distance3 = atomic_coordinates(combo)
+        angle = calculate_angle(combo,distance3)
+    # if len(neighbors_list) == 2:
+    #     distance12 = neighbors_list[0]
+    #     distance13 = neighbors_list[1]
+    #     distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
+    #     angle213 = calculate_angle(distance12, distance13, distance23)
+    #     return (angle213,)
+    # if len(neighbors_list) == 3:
+    #     distance12 = neighbors_list[0]
+    #     distance13 = neighbors_list[1]
+    #     distance14 = neighbors_list[2]
+    #     distance23 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[1]]
+    #     distance24 = atomic_coordinates[neighbors_index_list[0], neighbors_index_list[2]]
+    #     distance34 = atomic_coordinates[neighbors_index_list[1], neighbors_index_list[2]]
+    #     angle213 = calculate_angle(distance12, distance13, distance23)
+    #     angle214 = calculate_angle(distance12, distance14, distance24)
+    #     angle314 = calculate_angle(distance13, distance14, distance34)
+    #     return (angle213, angle214, angle314)
 
-
-def calculate_angle(distance12, distance13, distance23):
+#angles in radians
+def calculate_angle((dists_from_central_atom), distance_between_other_atoms):
     angle = math.acos((distance12 ** 2 + distance13 ** 2 - distance23 ** 2) / (2 * distance12 * distance13))
     return angle
 
@@ -157,6 +162,19 @@ def retrieve_coordinates(wavefunction, Cutoff):
     matrix_cutoff[matrix_cutoff >= Cutoff] = 0
     return label_list, distance_matrix, matrix_cutoff
 
+def generate_output_dimensions():
+    OutputDimension2 = 0 
+    if args.G1flag:
+        OutputDimension2 += 1
+    if args.G2flag:
+        OutputDimension2 += 1
+    if args.G3flag:
+        OutputDimension2 += 1
+    if args.G4flag:
+        OutputDimension2 += 1
+    if args.G5flag:
+        OutputDimension2 += 1
+    return OutputDimension2
 
 def gen_symm_functions(matrix, labels, matrix_cutoff):
     if args.G1flag == 'Y':
@@ -208,17 +226,7 @@ def __main__(args):
     HydrogenCounter = 0
     CarbonCounter = 0
     OxygenCounter = 0
-    OutputDimension2 = 0
-    if args.G1flag:
-        OutputDimension2 += 1
-    if args.G2flag:
-        OutputDimension2 += 1
-    if args.G3flag:
-        OutputDimension2 += 1
-    if args.G4flag:
-        OutputDimension2 += 1
-    if args.G5flag:
-        OutputDimension2 += 1
+    OutputDimension2 = generate_output_dimensions()
     master_dict = {}
     InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
     for atomfilename in InputList:
@@ -313,4 +321,9 @@ if __name__ == '__main__':
                         help='Set width of gaussian',
                         type=float,
                         default=3.0)
+    parser.add_argument('-l', '--lambda',
+                        dest='lambda',
+                        help='Set lambda, default=1',
+                        type=int,
+                        defualt=1)
     args = parser.parse_args()
