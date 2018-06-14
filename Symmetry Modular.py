@@ -26,10 +26,10 @@ def list_builder(InputExtension, WaveFunctionExtension):
     return InputList, WaveFunctionList
 
 
-def calculate_fcRij(distance, cutoff):
+def calculate_fcRij(distance):
     if distance <= 1e-7:
         pass
-    if distance > cutoff:
+    if distance > args.Cutoff:
         fcRij = 0
     else:
         fcRij = 0.5 * (math.cos(math.pi * distance / cutoff) + 1)
@@ -111,17 +111,7 @@ def gen_energy_list(int_file):
         OEnergyList.append(floatenergy)
 
 
-def label_to_charge(label):
-    atom_label = label[0]
-    if atom_label == 'H':
-        return 1
-    if atom_label == 'C':
-        return 6
-    if atom_label == 'O':
-        return 8
-
-
-def retrieve_coordinates(wavefunction, Cutoff):
+def retrieve_coordinates(wavefunction):
     with open(wavefunction, 'r') as waveinput:
         wavelines = waveinput.readlines()
         label_list = []
@@ -143,8 +133,9 @@ def retrieve_coordinates(wavefunction, Cutoff):
     distance_list = pdist(position_matrix)
     distance_matrix = squareform(distance_list)
     matrix_cutoff = np.copy(distance_matrix)
-    matrix_cutoff[matrix_cutoff >= Cutoff] = 0
+    matrix_cutoff[matrix_cutoff >= args.Cutoff] = 0
     return label_list, distance_matrix, matrix_cutoff
+
 
 def generate_output_dimensions():
     OutputDimension2 = 0 
@@ -159,6 +150,7 @@ def generate_output_dimensions():
     if args.G5flag:
         OutputDimension2 += 1
     return OutputDimension2
+
 
 def gen_symm_functions(matrix, labels, matrix_cutoff):
     if args.G1flag == 'Y':
@@ -209,13 +201,14 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
 def initialize_numpy_bins():
     counter_dict = {}
     for atom_type in args.AtomInputList.values():
-        counter_dict.setdefault(atom_type, default=0)
+        counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
     InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
     for atomfilename in InputList:
+        #wavefunction is a list, you moron
         wavefunction = atomfilename.split(args.WaveFunctionExtension)
-        if wavefunction not in wavefunction_file_dict:
+        if wavefunction not in wavefunction_and_file_dict:
             wavefunction_and_file_dict[wavefunction] = [atomfilename]
         else:
             atomfilelist = wavefunction_and_file_dict[wavefunction]
@@ -230,36 +223,25 @@ def initialize_numpy_bins():
     return keylist
 #Wrap this all together            
 
+
 def save_data():
-    args.InputList
+    for atom in args.AtomInputList:
+        np.save((atom+'_Out_Symmetry_Functions'), np.asarray(atom + EnergyList))
+        np.save((atom+'_Energy_Symmetry_Functions'), atom + EnergyOut)
+
 
 def main(args):
-    keylist = initialize_numpy_bins
+    keylist = initialize_numpy_bins()
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix = retrieve_coordinates(wavefunction)
-        gen_symm_functions(distance_matrix, labels)
+        gen_symm_functions(distance_matrix, labels, matrix_cutoff)
         for intfile in wavefunction_and_file_dict[wavefunction]:
             gen_energy_list(intfile)
     
     HydrogenArray = np.zeros([HydrogenCounter, OutputDimension2])
     CarbonArray = np.zeros([CarbonCounter, OutputDimension2])
     OxygenArray = np.zeros([OxygenCounter, OutputDimension2])
-
-    HydrogenEnergyOut = np.asarray(HEnergyList)
-    CarbonEnergyOut = np.asarray(CEnergyList)
-    OxygenEnergyOut = np.asarray(OEnergyList)
-
-    # print "Hydrogen", HydrogenArray.shape, HydrogenEnergyOut.shape
-    # print "Carbon", CarbonArray.shape, CarbonEnergyOut.shape
-    # print "Oxygen", OxygenArray.shape, OxygenEnergyOut.shape
-
-    np.save(('H_Out_Symmetry_Functions'), HydrogenArray)
-    np.save(('C_Out_Symmetry_Functions'), CarbonArray)
-    np.save(('O_Out_Symmetry_Functions'), OxygenArray)
-    np.save(('Energy_H_Out_Symmetry_Functions'), HydrogenEnergyOut)
-    np.save(('Energy_C_Out_Symmetry_Functions'), CarbonEnergyOut)
-    np.save(('Energy_O_Out_Symmetry_Functions'), OxygenEnergyOut)
 
 
 if __name__ == '__main__':
@@ -312,11 +294,16 @@ if __name__ == '__main__':
                         help='Set lambda, default=1',
                         type=int,
                         default=1)
+    parser.add_argument('-c', '--cutoff',
+                        dest='Cutoff',
+                        help='Set cutoff distance in bohr, defualt = 4.5',
+                        type=float,
+                        default=4.5)
     parser.add_argument('-a', '--atoms',
                         dest='AtomInputList',
                         help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, Li:Lithium)',
                         type=dict,
-                        default={H:Hydrogen,C:Carbon,O:Oxygen})
+                        default={'H':'Hydrogen','C':'Carbon','O':'Oxygen'})
                         #add file reading logic
     args = parser.parse_args() 
     main(args)
