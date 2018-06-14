@@ -206,40 +206,42 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             OxygenWritten += 1
 
 
-def __main__(args):
-    HydrogenCounter = 0
-    CarbonCounter = 0
-    OxygenCounter = 0
+def initialize_numpy_bins():
+    counter_dict = {}
+    for atom_type in args.AtomInputList.values():
+        counter_dict.setdefault(atom_type, default=0)
     OutputDimension2 = generate_output_dimensions()
-    master_dict = {}
+    wavefunction_and_file_dict = {}
     InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
     for atomfilename in InputList:
-        # Make this part more general
-        wavefunction = atomfilename.split('.wfn')
-        print str(wavefunction)
-        if wavefunction not in master_dict:
-            atomfilelist = [atomfilename]
-            master_dict[wavefunction] = atomfilelist
+        wavefunction = atomfilename.split(args.WaveFunctionExtension)
+        if wavefunction not in wavefunction_file_dict:
+            wavefunction_and_file_dict[wavefunction] = [atomfilename]
         else:
-            atomfilelist = master_dict[wavefunction]
+            atomfilelist = wavefunction_and_file_dict[wavefunction]
             atomfilelist.append(atomfilename)
-            master_dict[wavefunction] = atomfilelist
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnC" in atomfilename and atomfilename.endswith('.int'):
-            CarbonCounter += 1
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnH" in atomfilename and atomfilename.endswith('.int'):
-            HydrogenCounter += 1
-        if atomfilename.startswith('dsC7O2H10nsd') and ".wfnO" in atomfilename and atomfilename.endswith('.int'):
-            OxygenCounter += 1
-
-    keylist = master_dict.keys()
+            wavefunction_and_file_dict[wavefunction] = atomfilelist
+        for atom_type in args.AtomInputList.values():
+            string_check = args.WaveFunctionExtension + atom_type
+            if stringcheck in atomfilename:
+                counter_dict[atom_type] += 1
+    keylist = wavefunction_and_file_dict.keys()
     keylist.sort()
+    return keylist
+#Wrap this all together            
+
+def save_data():
+    args.InputList
+
+def main(args):
+    keylist = initialize_numpy_bins
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix = retrieve_coordinates(wavefunction)
         gen_symm_functions(distance_matrix, labels)
-        for intfile in master_dict[wavefunction]:
+        for intfile in wavefunction_and_file_dict[wavefunction]:
             gen_energy_list(intfile)
-
+    
     HydrogenArray = np.zeros([HydrogenCounter, OutputDimension2])
     CarbonArray = np.zeros([CarbonCounter, OutputDimension2])
     OxygenArray = np.zeros([OxygenCounter, OutputDimension2])
@@ -291,7 +293,7 @@ if __name__ == '__main__':
                         type=bool,
                         default=False)
     parser.add_argument('--G5',
-                        dest='G3flag',
+                        dest='G5flag',
                         help='Set flag to calculate G5, default=False',
                         type=bool,
                         default=False)
@@ -309,5 +311,12 @@ if __name__ == '__main__':
                         dest='lambda',
                         help='Set lambda, default=1',
                         type=int,
-                        defualt=1)
-    args = parser.parse_args()
+                        default=1)
+    parser.add_argument('-a', '--atoms',
+                        dest='AtomInputList',
+                        help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, Li:Lithium)',
+                        type=dict,
+                        default={H:Hydrogen,C:Carbon,O:Oxygen})
+                        #add file reading logic
+    args = parser.parse_args() 
+    main(args)
