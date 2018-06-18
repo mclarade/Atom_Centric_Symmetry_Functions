@@ -7,6 +7,7 @@ from itertools import combinations
 
 from scipy.spatial.distance import pdist, squareform
 
+#adapt this
 CarbonWritten = 0
 OxygenWritten = 0
 HydrogenWritten = 0
@@ -32,7 +33,7 @@ def calculate_fcRij(distance):
     if distance > args.Cutoff:
         fcRij = 0
     else:
-        fcRij = 0.5 * (math.cos(math.pi * distance / cutoff) + 1)
+        fcRij = 0.5 * (math.cos(math.pi * distance / args.Cutoff) + 1)
     return fcRij
 
 
@@ -103,6 +104,7 @@ def gen_energy_list(int_file):
                 atom_label = line[0]
             if line.startswith('              K'):
                 floatenergy = float(line.split()[3])
+#    for atom_label in args.    #adapt this
     if atom_label == 'C':
         CEnergyList.append(floatenergy)
     if atom_label == 'H':
@@ -112,7 +114,10 @@ def gen_energy_list(int_file):
 
 
 def retrieve_coordinates(wavefunction):
-    with open(wavefunction, 'r') as waveinput:
+    print wavefunction[0]
+    root_of_filename = wavefunction[0].split('.')[0]
+    filename = root_of_filename+'.wfn'
+    with open(filename, 'r') as waveinput:
         wavelines = waveinput.readlines()
         label_list = []
         x_list = []
@@ -164,7 +169,6 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
     if args.G5flag == 'Y':
         G5_Total = 0
     for i in range(0, len(matrix)):
-        global CarbonWritten, OxygenWritten, HydrogenWritten
         fcRij_list = []
         symm_function = []
         for distance in matrix[i]:
@@ -187,41 +191,40 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
                 angles = detect_and_retrieve_angle(matrix_cutoff)
                 for angle in angles:
                     G5_Total += calculate_g5(fcRij, distance, angle)
-        if atom_label == 'C':
-            CarbonArray[CarbonWritten] = symm_function
-            CarbonWritten += 1
-        if atom_label == 'H':
-            HydrogenArray[HydrogenWritten] = symm_function
-            HydrogenWritten += 1
-        if atom_label == 'O':
-            OxygenArray[OxygenWritten] = symm_function
-            OxygenWritten += 1
 
 
 def initialize_numpy_bins():
     counter_dict = {}
-    for atom_type in args.AtomInputList.values():
+    for atom_type in args.AtomInputList.keys():
         counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
     InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
     for atomfilename in InputList:
-        #wavefunction is a list, you moron
         wavefunction = atomfilename.split(args.WaveFunctionExtension)
-        if wavefunction not in wavefunction_and_file_dict:
-            wavefunction_and_file_dict[wavefunction] = [atomfilename]
+        if wavefunction[0] not in wavefunction_and_file_dict:
+            wavefunction_and_file_dict[wavefunction[0]] = [atomfilename]
         else:
-            atomfilelist = wavefunction_and_file_dict[wavefunction]
+            #This may be redundant
+            atomfilelist = wavefunction_and_file_dict[wavefunction[0]]
             atomfilelist.append(atomfilename)
-            wavefunction_and_file_dict[wavefunction] = atomfilelist
-        for atom_type in args.AtomInputList.values():
+            wavefunction_and_file_dict[wavefunction[0]] = atomfilelist
+        for atom_type in args.AtomInputList.keys():
             string_check = args.WaveFunctionExtension + atom_type
-            if stringcheck in atomfilename:
+            if string_check in atomfilename:
                 counter_dict[atom_type] += 1
-    keylist = wavefunction_and_file_dict.keys()
+                break
+    array_dict = {}
+    for atom_type in args.AtomInputList.keys():
+        if counter_dict[atom_type] == 0:
+            pass
+        else:
+            #look here for output dimensions
+            dimension0 = counter_dict[atom_type]
+            array_dict[atom_type] = np.zeros((dimension0, OutputDimension2))
+    keylist = wavefunction_and_file_dict.values()
     keylist.sort()
-    return keylist
-#Wrap this all together            
+    return keylist, array_dict
 
 
 def save_data():
@@ -231,21 +234,18 @@ def save_data():
 
 
 def main(args):
-    keylist = initialize_numpy_bins()
+    keylist, array_dict = initialize_numpy_bins()
     for wavefunction in keylist:
-        print wavefunction
-        labels, distance_matrix = retrieve_coordinates(wavefunction)
+        labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
         gen_symm_functions(distance_matrix, labels, matrix_cutoff)
         for intfile in wavefunction_and_file_dict[wavefunction]:
             gen_energy_list(intfile)
-    
-    HydrogenArray = np.zeros([HydrogenCounter, OutputDimension2])
-    CarbonArray = np.zeros([CarbonCounter, OutputDimension2])
-    OxygenArray = np.zeros([OxygenCounter, OutputDimension2])
+    #adapt this
+
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs')
+    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs. Note that each wavefunction must have a unique name, or behavior may become unpredictable')
     parser.add_argument('-x', '--extension',
                         dest='InputExtension',
                         help='Extension of aimpac output scripts',
