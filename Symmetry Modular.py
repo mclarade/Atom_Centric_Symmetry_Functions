@@ -16,18 +16,26 @@ CEnergyList = []
 OEnergyList = []
 
 
-def list_builder(InputExtension, WaveFunctionExtension):
+def list_builder():
+    '''
+    This function takes in the names of all of the files to be used and stores them in lists
+    '''
     InputList = []
     WaveFunctionList = []
     for file in os.listdir(os.curdir):
-        if file.endswith(InputExtension):
+        if file.endswith(args.InputExtension):
             InputList.append(file)
-        if file.endswith(WaveFunctionExtension):
+        if file.endswith(args.WaveFunctionExtension):
             WaveFunctionList.append(file)
+    InputList.sort()
+    WaveFunctionList.sort()
     return InputList, WaveFunctionList
 
 
 def calculate_fcRij(distance):
+    '''
+    Calculates fcRij for the atom in question
+    '''
     if distance <= 1e-7:
         pass
     if distance > args.Cutoff:
@@ -39,12 +47,18 @@ def calculate_fcRij(distance):
 
 # redundant, but left in for clarity
 def calculate_g1(fcRij):
+    '''
+    Sums up fcRij to make G1 for an atom, see (arxiv link)
+    '''
     G1 = 0
     G1 += fcRij
     return G1
 
 
 def calculate_g2(fcRij, distance):
+    '''
+    Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
+    '''
     G2 = 0
     args.gausswidth
     G2 += math.exp(gausswidth * (distance) ** 2) * fcRij
@@ -52,6 +66,9 @@ def calculate_g2(fcRij, distance):
 
 
 def calculate_g3(fcRij, distance):
+    '''
+    Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
+    '''
     G3 = 0
     global period_length
     G3 += math.cos(distance * period_length) * fcRij
@@ -59,16 +76,20 @@ def calculate_g3(fcRij, distance):
 
 
 def calculate_g4(fcRij, distance, angle):
-# There are problems with the angle calculations
+    '''
+    Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
+    '''
     G4 = 0
-    global gausswidth, Lamba, angular_resolution
-    G4 += (1 + Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
+    G4 += (1 + args.Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
     G4 = G4 * 2 ** (1 - angular_resolution)
     return G4
 
 
 def calculate_g5(fcRij, distance, angle):
 #There are problems with the angle calculations
+    '''
+    Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
+    '''
     G5 = 0
     global gausswidth, Lamba, angular_resolution
     G5 += (1 + Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13)
@@ -77,26 +98,34 @@ def calculate_g5(fcRij, distance, angle):
 
 
 def detect_and_retrieve_angle(atomic_coordinates_cutoff):
+    """
+    Takes in 3d coordinates, calculates and returns every angle between every atom that falls under the cutoff
+    """
     neighbors_list = []
     angle_list = []
     for i, element in enumerate(atomic_coordinates_cutoff):
         if element >= 1e-7:
             neighbors_list.append(element)
     neighbor_combinations = combinations(neighbors_list, 2)
-    for combo in neighbor_combinations:
+    for combination in neighbor_combinations:
         distance3 = atomic_coordinates_cutoff[combo]
-        angle = calculate_angle(combo,distance3)
+        angle = calculate_angle(combination, distance3)
         angle_list.append(angle)
     return angle_list
 
 
 def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
+    """
+    called by detect_and_retrieve_angle to calculate angles
+    """
     angle = math.acos((dists_from_central_atom[0] ** 2 + dists_from_central_atom[1] ** 2 - distance_between_other_atoms ** 2) / (2 * dists_from_central_atom[0] * dists_from_central_atom[1]))
     return angle
 
 
-def gen_energy_list(int_file):
-    global CEnergyList, HEnergyList, OEnergyList
+def gen_energy_list(int_file, array_dict):
+    '''
+    Reads energy values out of every .int file and stores them into a list to be saved
+    '''
     with open(int_file, 'r') as atomic_file:
         atomic_lines = atomic_file.readlines()
         for line in atomic_lines:
@@ -104,16 +133,13 @@ def gen_energy_list(int_file):
                 atom_label = line[0]
             if line.startswith('              K'):
                 floatenergy = float(line.split()[3])
-#    for atom_label in args.    #adapt this
-    if atom_label == 'C':
-        CEnergyList.append(floatenergy)
-    if atom_label == 'H':
-        HEnergyList.append(floatenergy)
-    if atom_label == 'O':
-        OEnergyList.append(floatenergy)
+        return atom_label, floatenergy
 
 
 def retrieve_coordinates(wavefunction):
+    '''
+    Extracts coordinates from wavefunction file, and generates a distance matrix and cutoff distance matrix
+    '''
     print wavefunction[0]
     root_of_filename = wavefunction[0].split('.')[0]
     filename = root_of_filename+'.wfn'
@@ -143,6 +169,7 @@ def retrieve_coordinates(wavefunction):
 
 
 def generate_output_dimensions():
+    """Sets the size of second dimension for numpy output"""
     OutputDimension2 = 0 
     if args.G1flag:
         OutputDimension2 += 1
@@ -158,15 +185,17 @@ def generate_output_dimensions():
 
 
 def gen_symm_functions(matrix, labels, matrix_cutoff):
-    if args.G1flag == 'Y':
+    """Calculates each individual symm function, and puts it into the appropriate cell of the numpy array"""
+    symm_function_list = []
+    if args.G1flag == True:
         G1_Total = 0
-    if args.G2flag == 'Y':
+    if args.G2flag == True:
         G2_Total = 0
-    if args.G3flag == 'Y':
+    if args.G3flag == True:
         G3_Total = 0
-    if args.G4flag == 'Y':
+    if args.G4flag == True:
         G4_Total = 0
-    if args.G5flag == 'Y':
+    if args.G5flag == True:
         G5_Total = 0
     for i in range(0, len(matrix)):
         fcRij_list = []
@@ -190,16 +219,27 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if args.G5flag == 'Y':
                 angles = detect_and_retrieve_angle(matrix_cutoff)
                 for angle in angles:
-                    G5_Total += calculate_g5(fcRij, distance, angle)
-
+                    G5_Total += calculate_g5(fcRij, distance, angle) 
+    if args.G1flag == True:
+        symm_function_list.append(G1_Total)
+    if args.G2flag == True:
+        symm_function_list.append(G2_Total)
+    if args.G3flag == True:
+        symm_function_list.append(G3_Total)
+    if args.G4flag == True:
+        symm_function_list.append(G4_Total)
+    if args.G5flag == True:
+        symm_function_list.append(G5_Total)
+    return symm_function_list
 
 def initialize_numpy_bins():
+    '''Creates numpy bins for each atom type'''
     counter_dict = {}
     for atom_type in args.AtomInputList.keys():
         counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
-    InputList, WaveFunctionList = list_builder(args.InputExtension, args.WaveFunctionExtension)
+    InputList, WaveFunctionList = list_builder()
     for atomfilename in InputList:
         wavefunction = atomfilename.split(args.WaveFunctionExtension)
         if wavefunction[0] not in wavefunction_and_file_dict:
@@ -227,21 +267,24 @@ def initialize_numpy_bins():
     return keylist, array_dict
 
 
-def save_data():
-    for atom in args.AtomInputList:
-        np.save((atom+'_Out_Symmetry_Functions'), np.asarray(atom + EnergyList))
-        np.save((atom+'_Energy_Symmetry_Functions'), atom + EnergyOut)
-
+def save_data(energy_dict):
+    for key in energy_dict.keys():
+        energy_out = np.asarray(energy_dict[key])
+        np.save(key+"_energy",energy_out)
+        
 
 def main(args):
-    keylist, array_dict = initialize_numpy_bins()
+    keylist, array_dict_sorted_by_atom = initialize_numpy_bins()
+    energy_dict = {}
     for wavefunction in keylist:
         labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
         gen_symm_functions(distance_matrix, labels, matrix_cutoff)
-        for intfile in wavefunction_and_file_dict[wavefunction]:
-            gen_energy_list(intfile)
-    #adapt this
-
+        for intfile in wavefunction:
+            atom_label, energy = gen_energy_list(intfile, array_dict_sorted_by_atom)
+            if atom_label not in energy_dict:
+                energy_dict[atom_label] = []
+            energy_dict[atom_label].append(energy) 
+    save_data(energy_dict)
 
 
 if __name__ == '__main__':
