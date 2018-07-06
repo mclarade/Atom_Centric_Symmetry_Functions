@@ -110,7 +110,9 @@ def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
     neighbor_combinations = list(combinations(neighbors_list, 2))
     index_combinations = list(combinations(index_list, 2))
     for index, combination in enumerate(neighbor_combinations):
+        #make this into a dictonary of angle{neighbor index}
         distance_between_neighbors = whole_molecule[index_combinations[index]]
+        print whole_molecule
         angle = calculate_angle(combination, distance_between_neighbors)
         angle_list.append(angle)
         distance_between_neighbors_list.append(distance_between_neighbors)
@@ -215,7 +217,7 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if args.G3flag == True:
                 G3_Total += calculate_g3(fcRij, distance)
             if args.G4flag == True or args.G5flag == True:
-                angles, distance_between_neighbors_list = detect_and_retrieve_angle(matrix_cutoff[i], matrix_cutoff)
+                angles, distance_between_neighbors_list = detect_and_retrieve_angle(matrix_cutoff[i], matrix)
             if args.G4flag == True:
                 for angle in angles:
                     G4_Total += calculate_g4(fcRij, distance, angle)
@@ -341,9 +343,9 @@ if __name__ == '__main__':
                         default=1)
     parser.add_argument('-c', '--cutoff',
                         dest='Cutoff',
-                        help='Set cutoff distance in bohr, defualt = 4.5',
+                        help='Set cutoff distance in bohr, defualt = 2.5',
                         type=float,
-                        default=4.5)
+                        default=2.5)
     parser.add_argument('-a', '--atoms',
                         dest='AtomInputList',
                         help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, Li:Lithium)',
