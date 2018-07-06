@@ -60,8 +60,7 @@ def calculate_g2(fcRij, distance):
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
     G2 = 0
-    args.gausswidth
-    G2 += math.exp(gausswidth * (distance) ** 2) * fcRij
+    G2 += math.exp(args.gausswidth * (distance) ** 2) * fcRij
     return G2
 
 
@@ -70,8 +69,7 @@ def calculate_g3(fcRij, distance):
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
-    global period_length
-    G3 += math.cos(distance * period_length) * fcRij
+    G3 += math.cos(distance * args.period_length) * fcRij
     return G3
 
 
@@ -80,8 +78,9 @@ def calculate_g4(fcRij, distance, angle):
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
-    G4 += (1 + args.Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
-    G4 = G4 * 2 ** (1 - angular_resolution)
+    G4 += (1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth * (distance12 ** 2 +
+                                                                                                       distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
+    G4 = G4 * 2 ** (1 - args.angular_resolution)
     return G4
 
 
@@ -91,27 +90,31 @@ def calculate_g5(fcRij, distance, angle):
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
-    global gausswidth, Lamba, angular_resolution
-    G5 += (1 + Lamba * math.cos(angle)) ** angular_resolution * math.exp(-gausswidth * (distance12 ** 2 + distance13 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13)
-    G5 = G5 * 2 ** (1 - angular_resolution)
+    G5 += (1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth * (distance12 ** 2 + distance13 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13)
+    G5 = G5 * 2 ** (1 - args.angular_resolution)
     return G5
 
 
-def detect_and_retrieve_angle(atomic_coordinates_cutoff):
+def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
     """
     Takes in 3d coordinates, calculates and returns every angle between every atom that falls under the cutoff
     """
     neighbors_list = []
     angle_list = []
-    for i, element in enumerate(atomic_coordinates_cutoff):
-        if element >= 1e-7:
-            neighbors_list.append(element)
-    neighbor_combinations = combinations(neighbors_list, 2)
-    for combination in neighbor_combinations:
-        distance3 = atomic_coordinates_cutoff[combo]
-        angle = calculate_angle(combination, distance3)
+    index_list = []
+    distance_between_neighbors_list = []
+    for index, distance in enumerate(central_atom_distances):
+        if distance > 1e-7:
+            neighbors_list.append(distance)
+            index_list.append(index)
+    neighbor_combinations = list(combinations(neighbors_list, 2))
+    index_combinations = list(combinations(index_list, 2))
+    for index, combination in enumerate(neighbor_combinations):
+        distance_between_neighbors = whole_molecule[index_combinations[index]]
+        angle = calculate_angle(combination, distance_between_neighbors)
         angle_list.append(angle)
-    return angle_list
+        distance_between_neighbors_list.append(distance_between_neighbors)
+    return angle_list, distance_between_neighbors_list
 
 
 def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
@@ -204,20 +207,19 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if distance > 1e-7:
                 symm_function.append(distance)
                 fcRij_list.append(calculate_fcRij(distance))
-            atom_label = labels[i][0]
         for fcRij in fcRij_list:
-            if args.G1flag == 'Y':
+            if args.G1flag == True:
                 G1_Total += calculate_g1(fcRij)
-            if args.G2flag == 'Y':
+            if args.G2flag == True:
                 G2_Total += calculate_g2(fcRij, distance)
-            if args.G3flag == 'Y':
+            if args.G3flag == True:
                 G3_Total += calculate_g3(fcRij, distance)
-            if args.G4flag == 'Y':
-                angles = detect_and_retrieve_angle(matrix_cutoff)
+            if args.G4flag == True or args.G5flag == True:
+                angles, distance_between_neighbors_list = detect_and_retrieve_angle(matrix_cutoff[i], matrix_cutoff)
+            if args.G4flag == True:
                 for angle in angles:
                     G4_Total += calculate_g4(fcRij, distance, angle)
-            if args.G5flag == 'Y':
-                angles = detect_and_retrieve_angle(matrix_cutoff)
+            if args.G5flag == True:
                 for angle in angles:
                     G5_Total += calculate_g5(fcRij, distance, angle) 
     if args.G1flag == True:
@@ -306,34 +308,34 @@ if __name__ == '__main__':
                         dest='G2flag',
                         help='Set flag to calculate G2, default=False',
                         type=bool,
-                        default=False)
+                        default=True)
     parser.add_argument('--G3',
                         dest='G3flag',
                         help='Set flag to calculate G3, default=False',
                         type=bool,
-                        default=False)
+                        default=True)
     parser.add_argument('--G4',
                         dest='G4flag',
                         help='Set flag to calculate G4, default=False',
                         type=bool,
-                        default=False)
+                        default=True)
     parser.add_argument('--G5',
                         dest='G5flag',
                         help='Set flag to calculate G5, default=False',
                         type=bool,
-                        default=False)
+                        default=True)
     parser.add_argument('-r', '-resolution',
-                        dest='AngularResolution',
+                        dest='angular_resolution',
                         help='Set angular resolution, default=5.0',
                         type=float,
                         default=5.0)
     parser.add_argument('-g', '--gausswidth',
-                        dest='GaussWidth',
+                        dest='gausswidth',
                         help='Set width of gaussian',
                         type=float,
                         default=3.0)
     parser.add_argument('-l', '--lambda',
-                        dest='lambda',
+                        dest='lambda_value',
                         help='Set lambda, default=1',
                         type=int,
                         default=1)
@@ -348,5 +350,10 @@ if __name__ == '__main__':
                         type=dict,
                         default={'H':'Hydrogen','C':'Carbon','O':'Oxygen'})
                         #add file reading logic
+    parser.add_argument('-p', '--period_length',
+                        dest='period_length',
+                        help='Set period length',
+                        type=float,
+                        default=1)
     args = parser.parse_args() 
     main(args)
