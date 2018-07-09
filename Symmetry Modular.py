@@ -73,24 +73,26 @@ def calculate_g3(fcRij, distance):
     return G3
 
 
-def calculate_g4(fcRij, distance, angle):
+def calculate_g4(fcRij, distance1, distance2, distance3, angle):
     '''
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
-    G4 += (1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth * (distance12 ** 2 +
-                                                                                                       distance13 ** 2 + distance23 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13) * calculate_fcRij(distance23)
+    G4 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution
+           * math.exp(-args.gausswidth * (distance1 ** 2 + distance2 ** 2 + distance3 ** 2))
+           * calculate_fcRij(distance1) * calculate_fcRij(distance2) * calculate_fcRij(distance3))
     G4 = G4 * 2 ** (1 - args.angular_resolution)
     return G4
 
 
-def calculate_g5(fcRij, distance, angle):
+def calculate_g5(fcRij, distance1, distance2, angle):
 #There are problems with the angle calculations
     '''
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
-    G5 += (1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth * (distance12 ** 2 + distance13 ** 2)) * calculate_fcRij(distance12) * calculate_fcRij(distance13)
+    G5 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth 
+           * (distance1 ** 2 + distance2 ** 2)) * calculate_fcRij(distance1) * calculate_fcRij(distance2))
     G5 = G5 * 2 ** (1 - args.angular_resolution)
     return G5
 
@@ -102,6 +104,8 @@ def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
     neighbors_list = []
     angle_list = []
     index_list = []
+    distance1_list = []
+    distance2_list = []
     distance_between_neighbors_list = []
     for index, distance in enumerate(central_atom_distances):
         if distance > 1e-7:
@@ -116,7 +120,9 @@ def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
         angle = calculate_angle(combination, distance_between_neighbors)
         angle_list.append(angle)
         distance_between_neighbors_list.append(distance_between_neighbors)
-    return angle_list, distance_between_neighbors_list
+        distance1_list.append(combination[0])
+        distance2_list.append(combination[1])
+    return angle_list, distance1_list, distance2_list, distance_between_neighbors_list
 
 
 def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
@@ -217,13 +223,13 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if args.G3flag == True:
                 G3_Total += calculate_g3(fcRij, distance)
             if args.G4flag == True or args.G5flag == True:
-                angles, distance_between_neighbors_list = detect_and_retrieve_angle(matrix_cutoff[i], matrix)
+                angles, distances1, distances2, distances3 = detect_and_retrieve_angle(matrix_cutoff[i], matrix)
             if args.G4flag == True:
-                for angle in angles:
-                    G4_Total += calculate_g4(fcRij, distance, angle)
+                for i, angle in enumerate(angles):
+                    G4_Total += calculate_g4(fcRij, distances1[i], distances2[i], distances3[i], angle)
             if args.G5flag == True:
-                for angle in angles:
-                    G5_Total += calculate_g5(fcRij, distance, angle) 
+                for i, angle in enumerate(angles):
+                    G5_Total += calculate_g5(fcRij, distances1[i], distances2[i], angle)
     if args.G1flag == True:
         symm_function_list.append(G1_Total)
     if args.G2flag == True:
