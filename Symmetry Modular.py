@@ -21,15 +21,11 @@ def list_builder():
     This function takes in the names of all of the files to be used and stores them in lists
     '''
     InputList = []
-    WaveFunctionList = []
     for file in os.listdir(os.curdir):
         if file.endswith(args.InputExtension):
             InputList.append(file)
-        if file.endswith(args.WaveFunctionExtension):
-            WaveFunctionList.append(file)
     InputList.sort()
-    WaveFunctionList.sort()
-    return InputList, WaveFunctionList
+    return InputList
 
 
 def calculate_fcRij(distance):
@@ -133,7 +129,7 @@ def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
     return angle
 
 
-def gen_energy_list(int_file, array_dict):
+def gen_energy_list(int_file):
     '''
     Reads energy values out of every .int file and stores them into a list to be saved
     '''
@@ -249,7 +245,7 @@ def initialize_numpy_bins():
         counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
-    InputList, WaveFunctionList = list_builder()
+    InputList = list_builder()
     for atomfilename in InputList:
         wavefunction = atomfilename.split(args.WaveFunctionExtension)
         if wavefunction[0] not in wavefunction_and_file_dict:
@@ -277,24 +273,38 @@ def initialize_numpy_bins():
     return keylist, array_dict
 
 
-def save_data(energy_dict):
+def save_energy_data(energy_dict):
     for key in energy_dict.keys():
         energy_out = np.asarray(energy_dict[key])
-        np.save(key+"_energy",energy_out)
+        np.save(key+"_energy", energy_out)
         
+
+def save_g_values(symm_dict):
+    for key in symm_dict.keys():
+        symm_out =  np.asarray(symm_dict[key])
+        np.save(key+"_symm", symm_out)
+
 
 def main(args):
     keylist, array_dict_sorted_by_atom = initialize_numpy_bins()
     energy_dict = {}
+    symm_dict = {}
     for wavefunction in keylist:
+        print array_dict_sorted_by_atom
         labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
-        gen_symm_functions(distance_matrix, labels, matrix_cutoff)
+        symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff)
         for intfile in wavefunction:
-            atom_label, energy = gen_energy_list(intfile, array_dict_sorted_by_atom)
+            atom_label, energy = gen_energy_list(intfile)
             if atom_label not in energy_dict:
                 energy_dict[atom_label] = []
-            energy_dict[atom_label].append(energy) 
-    save_data(energy_dict)
+            if atom_label not in symm_dict:
+                symm_dict[atom_label] = []
+            energy_dict[atom_label].append(energy)
+            symm_dict[atom_label].append(symm_data)
+    save_energy_data(energy_dict)
+    save_g_values(symm_dict)
+#    for atom_type in array_dict_sorted_by_atom
+
 
 
 if __name__ == '__main__':
