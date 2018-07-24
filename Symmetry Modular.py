@@ -56,7 +56,7 @@ def calculate_g2(fcRij, distance):
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
     G2 = 0
-    G2 += math.exp(args.gausswidth * (distance) ** 2) * fcRij
+    G2 += math.exp(args.gausswidth * (distance - args.radial_distance) ** 2) * fcRij
     return G2
 
 
@@ -112,7 +112,6 @@ def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
     for index, combination in enumerate(neighbor_combinations):
         #make this into a dictonary of angle{neighbor index}
         distance_between_neighbors = whole_molecule[index_combinations[index]]
-        print whole_molecule
         angle = calculate_angle(combination, distance_between_neighbors)
         angle_list.append(angle)
         distance_between_neighbors_list.append(distance_between_neighbors)
@@ -147,7 +146,6 @@ def retrieve_coordinates(wavefunction):
     '''
     Extracts coordinates from wavefunction file, and generates a distance matrix and cutoff distance matrix
     '''
-    print wavefunction[0]
     root_of_filename = wavefunction[0].split('.')[0]
     filename = root_of_filename+'.wfn'
     with open(filename, 'r') as waveinput:
@@ -221,11 +219,11 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
             if args.G4flag == True or args.G5flag == True:
                 angles, distances1, distances2, distances3 = detect_and_retrieve_angle(matrix_cutoff[i], matrix)
             if args.G4flag == True:
-                for i, angle in enumerate(angles):
-                    G4_Total += calculate_g4(fcRij, distances1[i], distances2[i], distances3[i], angle)
+                for j, angle in enumerate(angles):
+                    G4_Total += calculate_g4(fcRij, distances1[j], distances2[j], distances3[j], angle)
             if args.G5flag == True:
-                for i, angle in enumerate(angles):
-                    G5_Total += calculate_g5(fcRij, distances1[i], distances2[i], angle)
+                for j, angle in enumerate(angles):
+                    G5_Total += calculate_g5(fcRij, distances1[j], distances2[j], angle)
     if args.G1flag == True:
         symm_function_list.append(G1_Total)
     if args.G2flag == True:
@@ -290,7 +288,7 @@ def main(args):
     energy_dict = {}
     symm_dict = {}
     for wavefunction in keylist:
-        print array_dict_sorted_by_atom
+        print wavefunction
         labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
         symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff)
         for intfile in wavefunction:
@@ -303,7 +301,6 @@ def main(args):
             symm_dict[atom_label].append(symm_data)
     save_energy_data(energy_dict)
     save_g_values(symm_dict)
-#    for atom_type in array_dict_sorted_by_atom
 
 
 
@@ -317,6 +314,11 @@ if __name__ == '__main__':
                         dest='WaveFunctionExtension',
                         help='Extension of wavefunction files',
                         default='.wfn')
+    parser.add_argument('-c', '--cutoff',
+                        dest='Cutoff',
+                        help='Set cutoff distance in Bohr, default = 2.5, suggested values are between 2.0 and 11.0 Bohr',
+                        type=float,
+                        default=2.5)
     parser.add_argument('--G1',
                         dest='G1flag',
                         help='Set flag to calculate G1, default=True',
@@ -327,16 +329,36 @@ if __name__ == '__main__':
                         help='Set flag to calculate G2, default=False',
                         type=bool,
                         default=True)
+    parser.add_argument('-g', '--gausswidth',
+                        dest='gausswidth',
+                        help='Set width of gaussian, in Bohr^-2, required for G2, G4 and G5, suggested values are between 0.01 and 5.00Bohr^-2',
+                        type=float,
+                        default=1.0)
+    parser.add_argument('-d', '--radial_distance',
+                        dest='radial_distance',
+                        help='Set radial distance, in Bohr, required for G2, suggested values are between 2 and 10 Bohr',
+                        type=float,
+                        default=2.0)
     parser.add_argument('--G3',
                         dest='G3flag',
                         help='Set flag to calculate G3, default=False',
                         type=bool,
                         default=True)
+    parser.add_argument('-p', '--period_length',
+                        dest='Set period_length',
+                        help='Set period length, in Bohr^-1, required for G3, suggested values are between 0.5 and 2.0 Bohr^-2',
+                        type=float,
+                        default=1.0)
     parser.add_argument('--G4',
                         dest='G4flag',
                         help='Set flag to calculate G4, default=False',
                         type=bool,
                         default=True)
+    parser.add_argument('-l', '--lambda',
+                        dest='lambda_value',
+                        help='Set lambda, the maximum angle to 0 or pi radians by setting to +1 or -1, respectively, required for G4 and G5 default=1',
+                        type=int,
+                        default=1)
     parser.add_argument('--G5',
                         dest='G5flag',
                         help='Set flag to calculate G5, default=False',
@@ -344,34 +366,15 @@ if __name__ == '__main__':
                         default=True)
     parser.add_argument('-r', '-resolution',
                         dest='angular_resolution',
-                        help='Set angular resolution, default=5.0',
-                        type=float,
-                        default=5.0)
-    parser.add_argument('-g', '--gausswidth',
-                        dest='gausswidth',
-                        help='Set width of gaussian',
-                        type=float,
-                        default=3.0)
-    parser.add_argument('-l', '--lambda',
-                        dest='lambda_value',
-                        help='Set lambda, default=1',
+                        help='Set angular resolution, required for G4 and G5, required to be int, suggested values are 1, 2, 4, 16 and 64 default=4',
                         type=int,
-                        default=1)
-    parser.add_argument('-c', '--cutoff',
-                        dest='Cutoff',
-                        help='Set cutoff distance in bohr, defualt = 2.5',
-                        type=float,
-                        default=2.5)
+                        default=4)
     parser.add_argument('-a', '--atoms',
                         dest='AtomInputList',
-                        help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, Li:Lithium)',
+                        help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, H:Hydrogen)',
                         type=dict,
-                        default={'H':'Hydrogen','C':'Carbon','O':'Oxygen'})
+                        default={'H':'Hydrogen','N':'Nitgrogen','C':'Carbon','O':'Oxygen'})
                         #add file reading logic
-    parser.add_argument('-p', '--period_length',
-                        dest='period_length',
-                        help='Set period length',
-                        type=float,
-                        default=1)
     args = parser.parse_args() 
     main(args)
+#add in logic to throw error if G-functions are missing their required inputs
