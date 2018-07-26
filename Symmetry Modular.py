@@ -158,9 +158,13 @@ def generate_output_dimensions():
     return OutputDimension2
 
 
-def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom):
+def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom, atom_counter):
     """Calculates each individual symm function, and puts it into the appropriate cell of the numpy array"""
     symm_function_list = []
+    for atom in labels:
+        atom = filter(lambda x: not x.isdigit(), atom)
+        if atom not in atom_counter.keys():
+            atom_counter[atom] = 0
     if args.G1flag == True:
         G1_Total = 0
     if args.G2flag == True:
@@ -200,6 +204,7 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom)
                     elif matrix_cutoff[i, k] < 1e-7:
                         pass
                     else:
+                        print i, j, k
                         if args.G4flag == True or args.G5flag == True:
                             angle = calculate_angle(
                                 matrix_cutoff[i, j], matrix_cutoff[i, k], matrix[j, k])
@@ -221,7 +226,13 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom)
             symm_function_list.append(G4_Total)
         if args.G5flag == True:
             symm_function_list.append(G5_Total)
-    return symm_function_list
+        print atom_counter[atom_type]
+#        print array_dict_sorted_by_atom[atom_counter[atom_type], :]
+        array_dict_sorted_by_atom[atom_type][atom_counter[atom_type],:] = symm_function_list
+        print array_dict_sorted_by_atom[atom_type][atom_counter[atom_type], :]
+        atom_counter[atom_type] += 1
+
+
 
 def initialize_numpy_bins():
     '''Creates numpy bins for each atom type'''
@@ -277,15 +288,12 @@ def main(args):
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
-        symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff, array_dict_sorted_by_atom)
+        symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff, array_dict_sorted_by_atom, symm_dict)
         for intfile in wavefunction:
             atom_label, energy = gen_energy_list(intfile)
             if atom_label not in energy_dict:
                 energy_dict[atom_label] = []
-            if atom_label not in symm_dict:
-                symm_dict[atom_label] = []
             energy_dict[atom_label].append(energy)
-            symm_dict[atom_label].append(symm_data)
     save_energy_data(energy_dict)
     save_g_values(symm_dict)
 
