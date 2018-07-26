@@ -16,7 +16,7 @@ CEnergyList = []
 OEnergyList = []
 
 
-def list_builder():
+def file_list_builder():
     '''
     This function takes in the names of all of the files to be used and stores them in lists
     '''
@@ -28,17 +28,14 @@ def list_builder():
     return InputList
 
 
-def calculate_fcRij(distance):
+def calculate_fcRij_matrix(distance_matrix):
     '''
     Calculates fcRij for the atom in question
     '''
-    if distance <= 1e-7:
-        pass
-    if distance > args.Cutoff:
-        fcRij = 0
-    else:
-        fcRij = 0.5 * (math.cos(math.pi * distance / args.Cutoff) + 1)
-    return fcRij
+    fcRij_matrix = 0.5 * (np.cos(np.pi * distance_matrix / args.Cutoff) + 1)
+    fcRij_matrix[distance_matrix > args.Cutoff] = 0
+    fcRij_matrix[distance_matrix == 0] = 0
+    return fcRij_matrix
 
 
 # redundant, but left in for clarity
@@ -69,62 +66,34 @@ def calculate_g3(fcRij, distance):
     return G3
 
 
-def calculate_g4(fcRij, distance1, distance2, distance3, angle):
+def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle):
     '''
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
     G4 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution
-           * math.exp(-args.gausswidth * (distance1 ** 2 + distance2 ** 2 + distance3 ** 2))
-           * calculate_fcRij(distance1) * calculate_fcRij(distance2) * calculate_fcRij(distance3))
-    G4 = G4 * 2 ** (1 - args.angular_resolution)
+           * math.exp(-args.gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
+           * fcRij * fcRik * fcRjk) * 2 ** (1 - args.angular_resolution)
     return G4
 
 
-def calculate_g5(fcRij, distance1, distance2, angle):
+def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle):
 #There are problems with the angle calculations
     '''
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
     G5 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth 
-           * (distance1 ** 2 + distance2 ** 2)) * calculate_fcRij(distance1) * calculate_fcRij(distance2))
-    G5 = G5 * 2 ** (1 - args.angular_resolution)
+           * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
+           * 2 ** (1 - args.angular_resolution))
     return G5
 
 
-def detect_and_retrieve_angle(central_atom_distances, whole_molecule):
-    """
-    Takes in 3d coordinates, calculates and returns every angle between every atom that falls under the cutoff
-    """
-    neighbors_list = []
-    angle_list = []
-    index_list = []
-    distance1_list = []
-    distance2_list = []
-    distance_between_neighbors_list = []
-    for index, distance in enumerate(central_atom_distances):
-        if distance > 1e-7:
-            neighbors_list.append(distance)
-            index_list.append(index)
-    neighbor_combinations = list(combinations(neighbors_list, 2))
-    index_combinations = list(combinations(index_list, 2))
-    for index, combination in enumerate(neighbor_combinations):
-        #make this into a dictonary of angle{neighbor index}
-        distance_between_neighbors = whole_molecule[index_combinations[index]]
-        angle = calculate_angle(combination, distance_between_neighbors)
-        angle_list.append(angle)
-        distance_between_neighbors_list.append(distance_between_neighbors)
-        distance1_list.append(combination[0])
-        distance2_list.append(combination[1])
-    return angle_list, distance1_list, distance2_list, distance_between_neighbors_list
-
-
-def calculate_angle(dists_from_central_atom, distance_between_other_atoms):
+def calculate_angle(distance_ab, distance_ac, distance_bc):
     """
     called by detect_and_retrieve_angle to calculate angles
     """
-    angle = math.acos((dists_from_central_atom[0] ** 2 + dists_from_central_atom[1] ** 2 - distance_between_other_atoms ** 2) / (2 * dists_from_central_atom[0] * dists_from_central_atom[1]))
+    angle = math.acos((distance_ab ** 2 + distance_ac ** 2 - distance_bc ** 2) / (2 * distance_ab * distance_ac))
     return angle
 
 
@@ -189,7 +158,7 @@ def generate_output_dimensions():
     return OutputDimension2
 
 
-def gen_symm_functions(matrix, labels, matrix_cutoff):
+def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom):
     """Calculates each individual symm function, and puts it into the appropriate cell of the numpy array"""
     symm_function_list = []
     if args.G1flag == True:
@@ -203,37 +172,55 @@ def gen_symm_functions(matrix, labels, matrix_cutoff):
     if args.G5flag == True:
         G5_Total = 0
     for i in range(0, len(matrix)):
-        fcRij_list = []
-        symm_function = []
-        for distance in matrix[i]:
-            if distance > 1e-7:
-                symm_function.append(distance)
-                fcRij_list.append(calculate_fcRij(distance))
-        for fcRij in fcRij_list:
-            if args.G1flag == True:
-                G1_Total += calculate_g1(fcRij)
-            if args.G2flag == True:
-                G2_Total += calculate_g2(fcRij, distance)
-            if args.G3flag == True:
-                G3_Total += calculate_g3(fcRij, distance)
-            if args.G4flag == True or args.G5flag == True:
-                angles, distances1, distances2, distances3 = detect_and_retrieve_angle(matrix_cutoff[i], matrix)
-            if args.G4flag == True:
-                for j, angle in enumerate(angles):
-                    G4_Total += calculate_g4(fcRij, distances1[j], distances2[j], distances3[j], angle)
-            if args.G5flag == True:
-                for j, angle in enumerate(angles):
-                    G5_Total += calculate_g5(fcRij, distances1[j], distances2[j], angle)
-    if args.G1flag == True:
-        symm_function_list.append(G1_Total)
-    if args.G2flag == True:
-        symm_function_list.append(G2_Total)
-    if args.G3flag == True:
-        symm_function_list.append(G3_Total)
-    if args.G4flag == True:
-        symm_function_list.append(G4_Total)
-    if args.G5flag == True:
-        symm_function_list.append(G5_Total)
+        atom_type = filter(lambda x: not x.isdigit(), labels[i])
+        if atom_type not in array_dict_sorted_by_atom.keys():
+            raise Exception('Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
+        for j in range(0, len(matrix)):
+            if i == j:
+                pass
+            elif matrix_cutoff[i, j] < 1e-7:
+                pass
+            else:
+                symm_function = []
+                fcRij_matrix = calculate_fcRij_matrix(matrix)
+                symm_function.append(matrix_cutoff[i, j])
+                print i, j
+                if args.G1flag == True:
+                    G1_Total += calculate_g1(fcRij_matrix[i,j])
+                if args.G2flag == True:
+                    G2_Total += calculate_g2(fcRij_matrix[i,j], 
+                                             matrix_cutoff[i, j])
+                if args.G3flag == True:
+                    G3_Total += calculate_g3(fcRij_matrix[i, j],
+                                             matrix_cutoff[i, j])
+                #start K loop here
+                for k in range(0, len(matrix_cutoff)):
+                    if i == k or j == k:
+                       pass
+                    elif matrix_cutoff[i, k] < 1e-7:
+                        pass
+                    else:
+                        if args.G4flag == True or args.G5flag == True:
+                            angle = calculate_angle(
+                                matrix_cutoff[i, j], matrix_cutoff[i, k], matrix[j, k])
+                        if args.G4flag == True:
+                            G4_Total += calculate_g4(fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], 
+                                                        matrix_cutoff[i, j], matrix_cutoff[i, k], matrix[j, k], 
+                                                        angle)
+                        if args.G5flag == True:
+                            G5_Total += calculate_g5(fcRij_matrix[i, j], fcRij_matrix[i, k], 
+                                                        matrix_cutoff[i, j], matrix_cutoff[i, k], 
+                                                        angle)
+        if args.G1flag == True:
+            symm_function_list.append(G1_Total)
+        if args.G2flag == True:
+            symm_function_list.append(G2_Total)
+        if args.G3flag == True:
+            symm_function_list.append(G3_Total)
+        if args.G4flag == True:
+            symm_function_list.append(G4_Total)
+        if args.G5flag == True:
+            symm_function_list.append(G5_Total)
     return symm_function_list
 
 def initialize_numpy_bins():
@@ -243,7 +230,7 @@ def initialize_numpy_bins():
         counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
-    InputList = list_builder()
+    InputList = file_list_builder()
     for atomfilename in InputList:
         wavefunction = atomfilename.split(args.WaveFunctionExtension)
         if wavefunction[0] not in wavefunction_and_file_dict:
@@ -290,7 +277,7 @@ def main(args):
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix, matrix_cutoff = retrieve_coordinates(wavefunction)
-        symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff)
+        symm_data = gen_symm_functions(distance_matrix, labels, matrix_cutoff, array_dict_sorted_by_atom)
         for intfile in wavefunction:
             atom_label, energy = gen_energy_list(intfile)
             if atom_label not in energy_dict:
@@ -373,7 +360,7 @@ if __name__ == '__main__':
                         dest='AtomInputList',
                         help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, H:Hydrogen)',
                         type=dict,
-                        default={'H':'Hydrogen','N':'Nitgrogen','C':'Carbon','O':'Oxygen'})
+                        default={'H':'Hydrogen','C':'Carbon','N':'Nitgrogen','O':'Oxygen'})
                         #add file reading logic
     args = parser.parse_args() 
     main(args)
