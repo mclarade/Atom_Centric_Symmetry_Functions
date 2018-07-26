@@ -164,17 +164,17 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom,
         atom = filter(lambda x: not x.isdigit(), atom)
         if atom not in atom_counter.keys():
             atom_counter[atom] = 0
-    if args.G1flag == True:
-        G1_Total = 0
-    if args.G2flag == True:
-        G2_Total = 0
-    if args.G3flag == True:
-        G3_Total = 0
-    if args.G4flag == True:
-        G4_Total = 0
-    if args.G5flag == True:
-        G5_Total = 0
     for i in range(0, len(matrix)):
+        if args.G1flag == True:
+            G1_Total = 0
+        if args.G2flag == True:
+            G2_Total = 0
+        if args.G3flag == True:
+            G3_Total = 0
+        if args.G4flag == True:
+            G4_Total = 0
+        if args.G5flag == True:
+            G5_Total = 0
         symm_function_list = []
         atom_type = filter(lambda x: not x.isdigit(), labels[i])
         if atom_type not in array_dict_sorted_by_atom.keys():
