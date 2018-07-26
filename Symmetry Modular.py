@@ -318,7 +318,7 @@ if __name__ == '__main__':
                         dest='Cutoff',
                         help='Set cutoff distance in Bohr, default = 2.5, suggested values are between 2.0 and 11.0 Bohr',
                         type=float,
-                        default=2.5)
+                        default=3)
     parser.add_argument('--G1',
                         dest='G1flag',
                         help='Set flag to calculate G1, default=True',
@@ -333,7 +333,7 @@ if __name__ == '__main__':
                         dest='gausswidth',
                         help='Set width of gaussian, in Bohr^-2, required for G2, G4 and G5, suggested values are between 0.01 and 5.00Bohr^-2',
                         type=float,
-                        default=1.0)
+                        default=1.1)
     parser.add_argument('-d', '--radial_distance',
                         dest='radial_distance',
                         help='Set radial distance, in Bohr, required for G2, suggested values are between 2 and 10 Bohr',
@@ -345,10 +345,10 @@ if __name__ == '__main__':
                         type=bool,
                         default=True)
     parser.add_argument('-p', '--period_length',
-                        dest='Set period_length',
+                        dest='period_length',
                         help='Set period length, in Bohr^-1, required for G3, suggested values are between 0.5 and 2.0 Bohr^-2',
                         type=float,
-                        default=1.0)
+                        default=1.15)
     parser.add_argument('--G4',
                         dest='G4flag',
                         help='Set flag to calculate G4, default=False',
@@ -358,7 +358,7 @@ if __name__ == '__main__':
                         dest='lambda_value',
                         help='Set lambda, the maximum angle to 0 or pi radians by setting to +1 or -1, respectively, required for G4 and G5 default=1',
                         type=int,
-                        default=1)
+                        default=-1)
     parser.add_argument('--G5',
                         dest='G5flag',
                         help='Set flag to calculate G5, default=False',
