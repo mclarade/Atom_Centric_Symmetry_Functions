@@ -3,18 +3,10 @@ import os
 import math
 import numpy as np
 import argparse
+import json
 from itertools import combinations
 
 from scipy.spatial.distance import pdist, squareform
-
-#adapt this
-CarbonWritten = 0
-OxygenWritten = 0
-HydrogenWritten = 0
-HEnergyList = []
-CEnergyList = []
-OEnergyList = []
-
 
 def file_list_builder():
     '''
@@ -230,10 +222,10 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom,
     return array_dict_sorted_by_atom
 
 
-def initialize_numpy_bins():
+def initialize_numpy_bins(AtomInputList):
     '''Creates numpy bins for each atom type'''
     counter_dict = {}
-    for atom_type in args.AtomInputList.keys():
+    for atom_type in AtomInputList.keys():
         counter_dict.setdefault(atom_type, 0)
     OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
@@ -247,13 +239,13 @@ def initialize_numpy_bins():
             atomfilelist = wavefunction_and_file_dict[wavefunction[0]]
             atomfilelist.append(atomfilename)
             wavefunction_and_file_dict[wavefunction[0]] = atomfilelist
-        for atom_type in args.AtomInputList.keys():
+        for atom_type in AtomInputList.keys():
             string_check = args.WaveFunctionExtension + atom_type
             if string_check in atomfilename:
                 counter_dict[atom_type] += 1
                 break
     array_dict = {}
-    for atom_type in args.AtomInputList.keys():
+    for atom_type in AtomInputList.keys():
         if counter_dict[atom_type] == 0:
             pass
         else:
@@ -278,7 +270,9 @@ def save_g_values(symm_data):
 
 
 def main(args):
-    keylist, array_dict_sorted_by_atom = initialize_numpy_bins()
+    with open('Atom_Dict.json') as AtomsIn:
+        AtomInputList = json.loads(AtomsIn.read())
+    keylist, array_dict_sorted_by_atom = initialize_numpy_bins(AtomInputList)
     energy_dict = {}
     counter_dict = {}
     for wavefunction in keylist:
@@ -359,12 +353,6 @@ if __name__ == '__main__':
                         help='Set angular resolution, required for G4 and G5, required to be int, suggested values are 1, 2, 4, 16 and 64 default=4',
                         type=int,
                         default=4)
-    parser.add_argument('-a', '--atoms',
-                        dest='AtomInputList',
-                        help='Add to list of atoms to be inspected, takes input in the form Symbol:Name (eg, H:Hydrogen)',
-                        type=dict,
-                        default={'H':'Hydrogen','C':'Carbon','N':'Nitgrogen','O':'Oxygen'})
-                        #add file reading logic
     args = parser.parse_args() 
     main(args)
 #add in logic to throw error if G-functions are missing their required inputs
