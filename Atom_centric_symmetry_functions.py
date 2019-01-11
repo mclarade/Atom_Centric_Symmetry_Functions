@@ -8,6 +8,15 @@ from itertools import combinations
 
 from scipy.spatial.distance import pdist, squareform
 
+
+def str2bool(string):
+    if string.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif string.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def file_list_builder():
     '''
     This function takes in the names of all of the files to be used and stores them in lists
@@ -24,8 +33,8 @@ def calculate_fcRij_matrix(distance_matrix):
     '''
     Calculates fcRij for the atom in question
     '''
-    fcRij_matrix = 0.5 * (np.cos(np.pi * distance_matrix / args.Cutoff) + 1)
-    fcRij_matrix[distance_matrix > args.Cutoff] = 0
+    fcRij_matrix = 0.5 * (np.cos(np.pi * distance_matrix / params[cutoff]) + 1)
+    fcRij_matrix[distance_matrix > params[cutoff]] = 0
     fcRij_matrix[distance_matrix == 0] = 0
     return fcRij_matrix
 
@@ -40,44 +49,44 @@ def calculate_g1(fcRij):
     return G1
 
 
-def calculate_g2(fcRij, distance):
+def calculate_g2(fcRij, distance, params):
     '''
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
     G2 = 0
-    G2 += math.exp(args.gausswidth * (distance - args.radial_distance) ** 2) * fcRij
+    G2 += math.exp(params[gausswidth] * (distance - params[radial_distance]) ** 2) * fcRij
     return G2
 
 
-def calculate_g3(fcRij, distance):
+def calculate_g3(fcRij, distance, params[period_length]):
     '''
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
-    G3 += math.cos(distance * args.period_length) * fcRij
+    G3 += math.cos(distance * params[period_length]) * fcRij
     return G3
 
 
-def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle):
+def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle, params):
     '''
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
-    G4 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution
-           * math.exp(-args.gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
-           * fcRij * fcRik * fcRjk) * 2 ** (1 - args.angular_resolution)
+    G4 += ((1 + params[lambda_value] * math.cos(angle)) ** params[angular_resolution]
+           * math.exp(-params[gausswidth] * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
+           * fcRij * fcRik * fcRjk) * 2 ** (1 - params[angular_resolution])
     return G4
 
 
-def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle):
+def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle, params):
 #There are problems with the angle calculations
     '''
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
-    G5 += ((1 + args.lambda_value * math.cos(angle)) ** args.angular_resolution * math.exp(-args.gausswidth 
+    G5 += ((1 + params[lambda_value] * math.cos(angle)) ** params[angular_resolution] * math.exp(-params[gausswidth] 
            * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
-           * 2 ** (1 - args.angular_resolution))
+           * 2 ** (1 - params[angular_resolution]))
     return G5
 
 
@@ -130,27 +139,28 @@ def retrieve_coordinates(wavefunction):
     distance_list = pdist(position_matrix)
     distance_matrix = squareform(distance_list)
     matrix_cutoff = np.copy(distance_matrix)
-    matrix_cutoff[matrix_cutoff >= args.Cutoff] = 0
+    matrix_cutoff[matrix_cutoff >= params[cutoff]] = 0
     return label_list, distance_matrix, matrix_cutoff
 
 
-def generate_output_dimensions():
+def generate_output_dimensions(params):
     """Sets the size of second dimension for numpy output"""
     OutputDimension2 = 0 
     if args.G1flag:
         OutputDimension2 += 1
     if args.G2flag:
-        OutputDimension2 += 1
+        OutputDimension2 += len(params[gausswidth]]) * len(params[radial_distance])
     if args.G3flag:
-        OutputDimension2 += 1
+        OutputDimension2 += len(params[period_length])
     if args.G4flag:
-        OutputDimension2 += 1
+        OutputDimension2 += len(params[gausswidth]]) * len(params[lambda_value]) * len(params[angular_resolution])
     if args.G5flag:
-        OutputDimension2 += 1
+        OutputDimension2 += len(params[gausswidth]]) * len(params[lambda_value]) * len(params[angular_resolution])
     return OutputDimension2
 
 
-def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom, atom_counter):
+#TODO: Make this work with tuples
+def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom, atom_counter, ):
     """Calculates each individual symm function, and puts it into the appropriate cell of the numpy array"""
     for atom in labels:
         atom = filter(lambda x: not x.isdigit(), atom)
@@ -158,15 +168,15 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom,
             atom_counter[atom] = 0
     for i in range(0, len(matrix)):
         if args.G1flag == True:
-            G1_Total = 0
+            G1_Total = {}
         if args.G2flag == True:
-            G2_Total = 0
+            G2_Total = {}
         if args.G3flag == True:
-            G3_Total = 0
+            G3_Total = {}
         if args.G4flag == True:
-            G4_Total = 0
+            G4_Total = {}
         if args.G5flag == True:
-            G5_Total = 0
+            G5_Total = {}
         symm_function_list = []
         atom_type = filter(lambda x: not x.isdigit(), labels[i])
         if atom_type not in array_dict_sorted_by_atom.keys():
@@ -222,12 +232,11 @@ def gen_symm_functions(matrix, labels, matrix_cutoff, array_dict_sorted_by_atom,
     return array_dict_sorted_by_atom
 
 
-def initialize_numpy_bins(AtomInputList):
+def initialize_numpy_bins(AtomInputList, OutputDimension2):
     '''Creates numpy bins for each atom type'''
     counter_dict = {}
     for atom_type in AtomInputList.keys():
         counter_dict.setdefault(atom_type, 0)
-    OutputDimension2 = generate_output_dimensions()
     wavefunction_and_file_dict = {}
     InputList = file_list_builder()
     for atomfilename in InputList:
@@ -272,7 +281,10 @@ def save_g_values(symm_data):
 def main(args):
     with open('Atom_Dict.json') as AtomsIn:
         AtomInputList = json.loads(AtomsIn.read())
-    keylist, array_dict_sorted_by_atom = initialize_numpy_bins(AtomInputList)
+    with open('Parameters.json') as params_in:
+        params = json.loads(params_in.read())
+    OutputDimension2 = generate_output_dimensions(params)
+    keylist, array_dict_sorted_by_atom = initialize_numpy_bins(AtomInputList, OutputDimension2)
     energy_dict = {}
     counter_dict = {}
     for wavefunction in keylist:
@@ -298,61 +310,31 @@ if __name__ == '__main__':
                         dest='WaveFunctionExtension',
                         help='Extension of wavefunction files',
                         default='.wfn')
-    parser.add_argument('-c', '--cutoff',
-                        dest='Cutoff',
-                        help='Set cutoff distance in Bohr, default = 2.5, suggested values are between 2.0 and 11.0 Bohr',
-                        type=float,
-                        default=3)
     parser.add_argument('--G1',
                         dest='G1flag',
                         help='Set flag to calculate G1, default=True',
-                        type=bool,
+                        type=str2bool,
                         default=True)
     parser.add_argument('--G2',
                         dest='G2flag',
                         help='Set flag to calculate G2, default=False',
-                        type=bool,
+                        type=str2bool,
                         default=True)
-    parser.add_argument('-g', '--gausswidth',
-                        dest='gausswidth',
-                        help='Set width of gaussian, in Bohr^-2, required for G2, G4 and G5, suggested values are between 0.01 and 5.00Bohr^-2',
-                        type=float,
-                        default=1.1)
-    parser.add_argument('-d', '--radial_distance',
-                        dest='radial_distance',
-                        help='Set radial distance, in Bohr, required for G2, suggested values are between 2 and 10 Bohr',
-                        type=float,
-                        default=2.0)
     parser.add_argument('--G3',
                         dest='G3flag',
                         help='Set flag to calculate G3, default=False',
-                        type=bool,
+                        type=str2bool,
                         default=True)
-    parser.add_argument('-p', '--period_length',
-                        dest='period_length',
-                        help='Set period length, in Bohr^-1, required for G3, suggested values are between 0.5 and 2.0 Bohr^-2',
-                        type=float,
-                        default=1.15)
     parser.add_argument('--G4',
                         dest='G4flag',
                         help='Set flag to calculate G4, default=False',
-                        type=bool,
+                        type=str2bool,
                         default=True)
-    parser.add_argument('-l', '--lambda',
-                        dest='lambda_value',
-                        help='Set lambda, the maximum angle to 0 or pi radians by setting to +1 or -1, respectively, required for G4 and G5 default=1',
-                        type=int,
-                        default=-1)
     parser.add_argument('--G5',
                         dest='G5flag',
                         help='Set flag to calculate G5, default=False',
-                        type=bool,
+                        type=str2bool,
                         default=True)
-    parser.add_argument('-r', '-resolution',
-                        dest='angular_resolution',
-                        help='Set angular resolution, required for G4 and G5, required to be int, suggested values are 1, 2, 4, 16 and 64 default=4',
-                        type=int,
-                        default=4)
     args = parser.parse_args() 
     main(args)
 #add in logic to throw error if G-functions are missing their required inputs
