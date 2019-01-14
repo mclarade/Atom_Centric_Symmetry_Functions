@@ -49,44 +49,44 @@ def calculate_g1(fcRij):
     return G1
 
 
-def calculate_g2(fcRij, distance, params):
+def calculate_g2(fcRij, distance, gausswidth, radial_distance):
     '''
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
     G2 = 0
-    G2 += math.exp(params['gausswidth'] * (distance - params["radial_distance"]) ** 2) * fcRij
+    G2 += math.exp(gausswidth * (distance - radial_distance) ** 2) * fcRij
     return G2
 
 
-def calculate_g3(fcRij, distance, params):
+def calculate_g3(fcRij, distance, period_length):
     '''
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
-    G3 += math.cos(distance * params["period_length"]) * fcRij
+    G3 += math.cos(distance * period_length * fcRij)
     return G3
 
 
-def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle, params):
+def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle, lambda_value, angular_resolution, gausswidth):
     '''
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
-    G4 += ((1 + params["lambda_value"] * math.cos(angle)) ** params["angular_resolution"]
-           * math.exp(-params["gausswidth"] * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
-           * fcRij * fcRik * fcRjk) * 2 ** (1 - params["angular_resolution"])
+    G4 += ((1 + lambda_value * math.cos(angle)) ** angular_resolution
+           * math.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
+           * fcRij * fcRik * fcRjk) * 2 ** (1 - angular_resolution)
     return G4
 
 
-def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle, params):
+def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle, lambda_value, angular_resolution, gausswidth):
 #There are problems with the angle calculations
     '''
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
-    G5 += ((1 + params["lambda_value"] * math.cos(angle)) ** params["angular_resolution"] * math.exp(-params["gausswidth"] 
-           * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
-           * 2 ** (1 - params["angular_resolution"]))
+    G5 += ((1 + lambda_value * math.cos(angle)) ** angular_resolution * 
+            math.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
+            * 2 ** (1 - angular_resolution))
     return G5
 
 
@@ -135,14 +135,14 @@ def retrieve_coordinates(wavefunction, params):
                 x_list.append(float(linesplit[4]))
                 y_list.append(float(linesplit[5]))
                 z_list.append(float(linesplit[6]))
-#TODO: Make masks instead of matricies, and pass the masks around
     position_matrix = np.stack((x_list, y_list, z_list), axis=-1)
     distance_list = pdist(position_matrix)
     distance_matrix = squareform(distance_list)
     matrix_cutoff = np.copy(distance_matrix)
     cutoff_matricies = {}
-    for cutoff_value in params["cutoff"]:
-        cutoff_matricies[cutoff_value] = matrix_cutoff[matrix_cutoff >= cutoff_value] = 0
+    for cutoff in params["cutoff"]:
+        matrix_cutoff[matrix_cutoff >= cutoff] = 0
+        cutoff_matricies[cutoff] = matrix_cutoff
     return label_list, distance_matrix, cutoff_matricies
 
 
@@ -160,69 +160,6 @@ def generate_output_dimensions(params):
     if args.G5flag:
         OutputDimension2 += len(params["cutoff"]) * len(params["gausswidth"]) * len(params["lambda_value"]) * len(params["angular_resolution"])
     return OutputDimension2
-
-
-#TODO: Make this work with lists
-def gen_symm_functions(matrix, labels, cutoff_matricies, array_dict_sorted_by_atom, atom_counter, params):
-    """Calculates each individual symm function, and puts it into the appropriate cell of the numpy array"""
-    for atom in labels:
-        atom = filter(lambda x: not x.isdigit(), atom)
-        if atom not in atom_counter.keys():
-            atom_counter[atom] = 0
-    for i in range(0, len(matrix)):
-        if args.G1flag == True:
-            G1_Total = []
-        if args.G2flag == True:
-            G2_Total = {}
-        if args.G3flag == True:
-            G3_Total = {}
-        if args.G4flag == True:
-            G4_Total = {}
-        if args.G5flag == True:
-            G5_Total = {}
-        symm_function_list = []
-        atom_type = filter(lambda x: not x.isdigit(), labels[i])
-        if atom_type not in array_dict_sorted_by_atom.keys():
-            raise Exception('Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
-        for j in range(0, len(matrix)):
-            for cutoff_value in params["cutoff"]:
-                if i == j:
-                    pass
-                elif cutoff_matricies[cutoff_value][i, j] < 1e-7:
-                    pass
-                else:
-                    fcRij_matrix = calculate_fcRij_matrix(matrix, cutoff_value)
-                    if args.G1flag == True:
-                        for cutoff_value in params["cutoff"]:
-                            G1_Total += calculate_g1(
-                                fcRij_matrix[i, j])
-                    if args.G2flag == True:
-                        G2_Total += calculate_g2(fcRij_matrix[i,j], 
-                                                cutoff_matricies[cutoff_value][i, j], params )
-                    if args.G3flag == True:
-                        G3_Total += calculate_g3(fcRij_matrix[i, j],
-                                                cutoff_matricies[cutoff_value][i, j], params)
-                    #start K loop here
-                    for k in range(0, len(cutoff_matricies[cutoff_value])):
-                        if i == k or j == k:
-                            pass
-                        elif cutoff_matricies[cutoff_value][i, k] < 1e-7:
-                            pass
-                        else:
-                            if args.G4flag == True or args.G5flag == True:
-                                angle = calculate_angle(
-                                    cutoff_matricies[cutoff_value][i, j], cutoff_matricies[cutoff_value][i, k], matrix[j, k])
-                            if args.G4flag == True:
-                                G4_Total += calculate_g4(fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], 
-                                                            cutoff_matricies[cutoff_value][i, j], cutoff_matricies[cutoff_value][i, k], matrix[j, k], 
-                                                         angle, params)
-                            if args.G5flag == True:
-                                G5_Total += calculate_g5(fcRij_matrix[i, j], fcRij_matrix[i, k], 
-                                                            cutoff_matricies[cutoff_value][i, j], cutoff_matricies[cutoff_value][i, k], 
-                                                         angle, params)
-        array_dict_sorted_by_atom[atom_type][atom_counter[atom_type],:] = symm_function_list
-        atom_counter[atom_type] += 1
-    return array_dict_sorted_by_atom
 
 
 def initialize_numpy_bins(AtomInputList, OutputDimension2):
@@ -263,13 +200,13 @@ def save_energy_data(energy_dict):
     for key in energy_dict.keys():
         energy_out = np.asarray(energy_dict[key])
         np.save(key+"_energy", energy_out)
-        
+        print energy_out
 
 def save_g_values(symm_data):
     for key in symm_data.keys():
         symm_out =  np.asarray(symm_data[key])
         np.save(key+"_symm", symm_out)
-
+        print symm_out
 
 def main(args):
     with open('Atom_Dict.json') as AtomsIn:
@@ -277,21 +214,68 @@ def main(args):
     with open('Parameters.json') as params_in:
         params = json.loads(params_in.read())
     OutputDimension2 = generate_output_dimensions(params)
-    keylist, array_dict_sorted_by_atom = initialize_numpy_bins(AtomInputList, OutputDimension2)
+    keylist, All_G_Data = initialize_numpy_bins(AtomInputList, OutputDimension2)
     energy_dict = {}
-    counter_dict = {}
+    if args.G1flag == True:
+        G1_Data = []
+    if args.G2flag == True:
+        G2_Data = []
+    if args.G3flag == True:
+        G3_Data = []
+    if args.G4flag == True:
+        G4_Data = []
+    if args.G5flag == True:
+        G5_Data = []
+
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix, cutoff_matricies = retrieve_coordinates(wavefunction, params)
-        array_dict_sorted_by_atom = gen_symm_functions(
-            distance_matrix, labels, cutoff_matricies, array_dict_sorted_by_atom, counter_dict, params)
+        for cutoff in cutoff_matricies.keys():
+            fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
+            for i in range(0, len(cutoff_matricies[cutoff])):
+                atom_type = filter(lambda x: not x.isdigit(), labels[i])
+                if atom_type not in All_G_Data.keys():
+                    raise Exception(
+                        'Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
+
+                for j in range(0, len(cutoff_matricies[cutoff])):
+                    if i == j:
+                        pass
+                    elif cutoff_matricies[cutoff][i, j] < 1e-7:
+                        pass
+                    else:
+                        if args.G1flag == True:
+                            G1_Data.append(calculate_g1(fcRij_matrix[i, j]))
+                        if args.G2flag == True:
+                            for width in params['gausswidth']:
+                                for distance in params['radial_distance']:
+                                    G2_Data.append(calculate_g2(fcRij_matrix[i,j], cutoff_matricies[cutoff][i,j], width, distance))
+                        if args.G3flag == True:
+                            for period in params['period_length']:
+                                G3_Data.append(calculate_g3(fcRij_matrix[i,j], cutoff_matricies[cutoff][i,j], period))
+                        if args.G4flag == True or args.G5flag == True:
+                            for k in range(0, len(cutoff_matricies[cutoff])):
+                                if i == k or j == k:
+                                    pass
+                                elif cutoff_matricies[cutoff][i,k] < 1e-7:
+                                    pass
+                                else:
+                                    angle = calculate_angle(cutoff_matricies[cutoff][i, j], cutoff_matricies[cutoff][i, k], distance_matrix[j, k])
+                                    for value in params['lambda_value']:
+                                        for resolution in params['angular_resolution']:
+                                            for width in params['gausswidth']:
+                                                if args.G4flag == True:
+                                                    G4_Data.append(calculate_g4(fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], cutoff_matricies[cutoff][i, j], cutoff_matricies[cutoff][i, k], cutoff_matricies[cutoff][j, k], angle, value, resolution, width))
+                                                if args.G5flag == True:
+                                                    G5_Data.append(calculate_g5(fcRij_matrix[i, j], fcRij_matrix[i, k], cutoff_matricies[cutoff][i, j], cutoff_matricies[cutoff][i, k], angle, value, resolution, width))
+                All_G_Data[atom_type] = G1_Data + G2_Data + G3_Data + G4_Data + G5_Data 
         for intfile in wavefunction:
             atom_label, energy = gen_energy_list(intfile)
             if atom_label not in energy_dict:
                 energy_dict[atom_label] = []
             energy_dict[atom_label].append(energy)
     save_energy_data(energy_dict)
-    save_g_values(array_dict_sorted_by_atom)
+    save_g_values(All_G_Data)
 
 
 if __name__ == '__main__':
@@ -331,4 +315,3 @@ if __name__ == '__main__':
                         default=True)
     args = parser.parse_args() 
     main(args)
-#add in logic to throw error if G-functions are missing their required inputs
