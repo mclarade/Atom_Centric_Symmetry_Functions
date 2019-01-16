@@ -1,6 +1,5 @@
 from __future__ import division
 import os
-import math
 import numpy as np
 import argparse
 import json
@@ -52,8 +51,7 @@ def calculate_g2(fcRij, distance, gausswidth, radial_distance):
     '''
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
-    G2 = 0
-    G2 += math.exp(gausswidth * (distance - radial_distance) ** 2) * fcRij
+    G2 = np.exp(gausswidth * (distance - radial_distance) ** 2) * fcRij
     return G2
 
 
@@ -62,7 +60,7 @@ def calculate_g3(fcRij, distance, period_length):
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
-    G3 += math.cos(distance * period_length * fcRij)
+    G3 += np.cos(distance * period_length * fcRij)
     return G3
 
 
@@ -71,8 +69,8 @@ def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, ang
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
-    G4 += ((1 + lambda_value * math.cos(angle)) ** angular_resolution
-           * math.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
+    G4 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution
+           * np.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
            * fcRij * fcRik * fcRjk) * 2 ** (1 - angular_resolution)
     return G4
 
@@ -83,8 +81,8 @@ def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle, lambda_value, an
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
-    G5 += ((1 + lambda_value * math.cos(angle)) ** angular_resolution * 
-            math.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
+    G5 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
+            np.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
             * 2 ** (1 - angular_resolution))
     return G5
 
@@ -93,7 +91,7 @@ def calculate_angle(distance_ab, distance_ac, distance_bc):
     """
     called by detect_and_retrieve_angle to calculate angles
     """
-    angle = math.acos((distance_ab ** 2 + distance_ac ** 2 - distance_bc ** 2) / (2 * distance_ab * distance_ac))
+    angle = np.arccos((distance_ab ** 2 + distance_ac ** 2 - distance_bc ** 2) / (2 * distance_ab * distance_ac))
     return angle
 
 
@@ -158,8 +156,10 @@ def generate_output_dimensions(params):
 
 def initialize_numpy_bins(AtomInputList, OutputDimension2):
     '''Creates numpy bins for each atom type'''
+    total_dict = {}
     counter_dict = {}
     for atom_type in AtomInputList.keys():
+        total_dict.setdefault(atom_type, 0)
         counter_dict.setdefault(atom_type, 0)
     wavefunction_and_file_dict = {}
     InputList = file_list_builder()
@@ -175,32 +175,32 @@ def initialize_numpy_bins(AtomInputList, OutputDimension2):
         for atom_type in AtomInputList.keys():
             string_check = args.WaveFunctionExtension + atom_type
             if string_check in atomfilename:
-                counter_dict[atom_type] += 1
+                total_dict[atom_type] += 1
                 break
     array_dict = {}
     for atom_type in AtomInputList.keys():
-        if counter_dict[atom_type] == 0:
+        if total_dict[atom_type] == 0:
             pass
         else:
             #look here for output dimensions
-            dimension0 = counter_dict[atom_type]
+            dimension0 = total_dict[atom_type]
             array_dict[atom_type] = np.zeros((dimension0, OutputDimension2))
     keylist = wavefunction_and_file_dict.values()
     keylist.sort()
-    return keylist, array_dict
+    return keylist, array_dict, total_dict, counter_dict
 
 
 def save_energy_data(energy_dict):
     for key in energy_dict.keys():
         energy_out = np.asarray(energy_dict[key])
         np.save(key+"_energy", energy_out)
-        #print key, energy_out
+        print key, energy_out
 
 def save_g_values(symm_data):
     for key in symm_data.keys():
         symm_out =  np.asarray(symm_data[key])
         np.save(key+"_symm", symm_out)
-        #print key, symm_out.shape
+        print key, symm_out.shape
 
 def main(args):
     with open('Atom_Dict.json') as AtomsIn:
@@ -208,7 +208,7 @@ def main(args):
     with open('Parameters.json') as params_in:
         params = json.loads(params_in.read())
     OutputDimension2 = generate_output_dimensions(params)
-    keylist, All_G_Data = initialize_numpy_bins(AtomInputList, OutputDimension2)
+    keylist, All_G_Data, total_dict, counter_dict = initialize_numpy_bins(AtomInputList, OutputDimension2)
     energy_dict = {}
     counter = 0
     for wavefunction in keylist:
@@ -216,8 +216,6 @@ def main(args):
         labels, distance_matrix = retrieve_coordinates(wavefunction, params)
         #cycle through central atoms
         for i in range(0, len(distance_matrix)):
-            print labels[i]
-            G_Master_Data = []
             if args.G1flag == True:
                 G1_Data = []
             if args.G2flag == True:
@@ -234,54 +232,55 @@ def main(args):
             if atom_type not in All_G_Data.keys():
                 raise Exception(
                     'Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
-            #cycle through neighbor atoms
-            for j in range(0, len(distance_matrix)):
-                #This is here so we only take the upper triangle of the matrix
-                if i == j:
-                    pass
-                #cycle through cutoff values
-                for cutoff in params['cutoff']:
-                    fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
-                    if distance_matrix[i, j] < 1e-7 or distance_matrix[i,j] >= cutoff:
-                        print distance_matrix[i]
-                        pass
-                    else:
-                        if args.G1flag == True:
-                            G1_Data.append(calculate_g1(fcRij_matrix[i, j]))
-                        if args.G2flag == True:
+            #cycle through cutoff values
+            for cutoff in params['cutoff']:
+                fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
+                if args.G1flag == True:
+                    G1_Row = calculate_g1(fcRij_matrix[i])
+                    G1_Data.append(np.sum(G1_Row))
+                if args.G2flag == True:
+                    for width in params['gausswidth']:
+                        for distance in params['radial_distance']:
+                            G2_Row = calculate_g2(
+                                fcRij_matrix[i], distance_matrix[i], width, distance)
+                            G2_Data.append(np.sum(G2_Row))
+                if args.G3flag == True:
+                    for period in params['period_length']:
+                        G3_Row = calculate_g3(
+                            fcRij_matrix[i], distance_matrix[i], period)
+                        G3_Data.append(np.sum(G3_Row))
+                if args.G4flag == True or args.G5flag == True:
+                    for value in params['lambda_value']:
+                        for resolution in params['angular_resolution']:
                             for width in params['gausswidth']:
-                                for distance in params['radial_distance']:
-                                    G2_Data.append(calculate_g2(
-                                        fcRij_matrix[i, j], distance_matrix[i, j], width, distance))
-                        if args.G3flag == True:
-                            for period in params['period_length']:
-                                G3_Data.append(calculate_g3(
-                                    fcRij_matrix[i,j], distance_matrix[i,j], period))
-                        if args.G4flag == True or args.G5flag == True:
-                            for value in params['lambda_value']:
-                                for resolution in params['angular_resolution']:
-                                    for width in params['gausswidth']:
-                                        G4_Sum = 0
-                                        G5_Sum = 0
-                                        for k in range(0, len(distance_matrix)):
-                                            if j == k or i == k:
-                                                pass
-                                            elif distance_matrix[i,k] < 1e-7 or distance_matrix[i,k] >= cutoff or distance_matrix[i,j] < 1e-7 or distance_matrix[i,j] > cutoff:
-                                                pass
-                                            else:
-                                                angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
-                                                if args.G4flag == True:
-                                                    G4_Sum +=  calculate_g4(
-                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
-                                                if args.G5flag == True:
-                                                    G5_Sum += calculate_g5(
-                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
-                                        G4_Data.append(G4_Sum)
-                                        G5_Data.append(G5_Sum)
-                print labels[i], cutoff, len(G1_Data), len(G2_Data), len(G3_Data), len(G4_Data), len(G5_Data)
-                #G_Master_Data = G1_Data + G2_Data + G3_Data + G4_Data + G5_Data
-                #All_G_Data[atom_type][counter] = G_Master_Data
-            counter += 1
+                                G4_Sum = 0
+                                G5_Sum = 0
+                                for j in range(0, len(distance_matrix)):
+                                    #This is here so we only take the upper triangle of the matrix
+                                    for k in range(0, len(distance_matrix)):
+                                        if i == j or j == k or i == k:
+                                            pass
+                                        elif distance_matrix[i,k] < 1e-7 or distance_matrix[i,k] >= cutoff or distance_matrix[i,j] < 1e-7 or distance_matrix[i,j] > cutoff:
+                                            pass
+                                        else:
+                                            angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
+                                            if args.G4flag == True:
+                                                G4_Sum +=  calculate_g4(
+                                                    fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
+                                            if args.G5flag == True:
+                                                G5_Sum += calculate_g5(
+                                                    fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
+                                G4_Data.append(G4_Sum)
+                                G5_Data.append(G5_Sum)
+            G1_Data = np.asarray(G1_Data)
+            G2_Data = np.asarray(G2_Data)
+            G3_Data = np.asarray(G3_Data)
+            G4_Data = np.asarray(G4_Data)
+            G5_Data = np.asarray(G5_Data)
+            print atom_type, G1_Data.shape, G2_Data.shape, G3_Data.shape, G4_Data.shape, G5_Data.shape
+            G_Master_Data = np.concatenate((G1_Data, G2_Data, G3_Data, G4_Data, G5_Data), axis =0)
+            All_G_Data[atom_type][counter_dict[atom_type]] = G_Master_Data
+            counter_dict[atom_type] += 1
         for intfile in wavefunction:
             atom_label, energy = gen_energy_list(intfile)
             if atom_label not in energy_dict:
