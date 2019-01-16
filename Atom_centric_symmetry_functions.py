@@ -216,30 +216,34 @@ def main(args):
         labels, distance_matrix = retrieve_coordinates(wavefunction, params)
         #cycle through central atoms
         for i in range(0, len(distance_matrix)):
+            print labels[i]
+            G_Master_Data = []
+            if args.G1flag == True:
+                G1_Data = []
+            if args.G2flag == True:
+                G2_Data = []
+            if args.G3flag == True:
+                G3_Data = []
+            if args.G4flag == True:
+                G4_Data = []
+            if args.G5flag == True:
+                G5_Data = []
             #retain atom label for central atom
             atom_type = filter(lambda x: not x.isdigit(), labels[i])
+            #TODO: Pass around numpy array for operations instead of doing operations on single numbers
             if atom_type not in All_G_Data.keys():
                 raise Exception(
                     'Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
             #cycle through neighbor atoms
             for j in range(0, len(distance_matrix)):
                 #This is here so we only take the upper triangle of the matrix
-                if i <= j:
-                    break
+                if i == j:
+                    pass
                 #cycle through cutoff values
                 for cutoff in params['cutoff']:
-                    if args.G1flag == True:
-                        G1_Data = []
-                    if args.G2flag == True:
-                        G2_Data = []
-                    if args.G3flag == True:
-                        G3_Data = []
-                    if args.G4flag == True:
-                        G4_Data = []
-                    if args.G5flag == True:
-                        G5_Data = []
                     fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
                     if distance_matrix[i, j] < 1e-7 or distance_matrix[i,j] >= cutoff:
+                        print distance_matrix[i]
                         pass
                     else:
                         if args.G1flag == True:
@@ -257,22 +261,25 @@ def main(args):
                             for value in params['lambda_value']:
                                 for resolution in params['angular_resolution']:
                                     for width in params['gausswidth']:
+                                        G4_Sum = 0
+                                        G5_Sum = 0
                                         for k in range(0, len(distance_matrix)):
-                                            if i == k or j == k:
+                                            if j == k or i == k:
                                                 pass
-                                            elif distance_matrix[i,k] < 1e-7 or distance_matrix[i,k] >= cutoff:
+                                            elif distance_matrix[i,k] < 1e-7 or distance_matrix[i,k] >= cutoff or distance_matrix[i,j] < 1e-7 or distance_matrix[i,j] > cutoff:
                                                 pass
                                             else:
                                                 angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
                                                 if args.G4flag == True:
-                                                    G4_Data.append(calculate_g4(
-                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width))
+                                                    G4_Sum +=  calculate_g4(
+                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
                                                 if args.G5flag == True:
-                                                    G5_Data.append(calculate_g5(
-                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width))
-                    #TODO: Figure out how to sum up and save out this data.
-                    print cutoff, len(G1_Data), len(G2_Data), len(G3_Data), len(G4_Data), len(G5_Data)
-                #print All_G_Data[atom_type].shape
+                                                    G5_Sum += calculate_g5(
+                                                        fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
+                                        G4_Data.append(G4_Sum)
+                                        G5_Data.append(G5_Sum)
+                print labels[i], cutoff, len(G1_Data), len(G2_Data), len(G3_Data), len(G4_Data), len(G5_Data)
+                #G_Master_Data = G1_Data + G2_Data + G3_Data + G4_Data + G5_Data
                 #All_G_Data[atom_type][counter] = G_Master_Data
             counter += 1
         for intfile in wavefunction:
