@@ -53,7 +53,7 @@ def calculate_g2(fcRij, distance, gausswidth, radial_distance):
     '''
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
-    G2 = np.exp(gausswidth * (distance - radial_distance) ** 2) * fcRij
+    G2 = np.exp(-gausswidth * (distance - radial_distance) ** 2) * fcRij
     return G2
 
 
