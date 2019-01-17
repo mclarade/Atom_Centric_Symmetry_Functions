@@ -33,6 +33,8 @@ def calculate_fcRij_matrix(distance_matrix, cutoff):
     Calculates fcRij for the atom in question
     '''
     fcRij_matrix = 0.5 * (np.cos(np.pi * distance_matrix / cutoff) + 1)
+    if fcRij_matrix.shape == ():
+        return fcRij_matrix
     fcRij_matrix[distance_matrix > cutoff] = 0
     fcRij_matrix[distance_matrix == 0] = 0
     return fcRij_matrix
@@ -60,7 +62,7 @@ def calculate_g3(fcRij, distance, period_length):
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
-    G3 += np.cos(distance * period_length * fcRij)
+    G3 += np.cos(distance * period_length) * fcRij
     return G3
 
 
@@ -187,7 +189,7 @@ def initialize_numpy_bins(AtomInputList, OutputDimension2):
             array_dict[atom_type] = np.zeros((dimension0, OutputDimension2))
     keylist = wavefunction_and_file_dict.values()
     keylist.sort()
-    return keylist, array_dict, total_dict, counter_dict
+    return keylist, array_dict, counter_dict
 
 
 def save_energy_data(energy_dict):
@@ -208,9 +210,8 @@ def main(args):
     with open('Parameters.json') as params_in:
         params = json.loads(params_in.read())
     OutputDimension2 = generate_output_dimensions(params)
-    keylist, All_G_Data, total_dict, counter_dict = initialize_numpy_bins(AtomInputList, OutputDimension2)
+    keylist, All_G_Data, counter_dict = initialize_numpy_bins(AtomInputList, OutputDimension2)
     energy_dict = {}
-    counter = 0
     for wavefunction in keylist:
         print wavefunction
         labels, distance_matrix = retrieve_coordinates(wavefunction, params)
@@ -266,7 +267,7 @@ def main(args):
                                             angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
                                             if args.G4flag == True:
                                                 G4_Sum +=  calculate_g4(
-                                                    fcRij_matrix[i, j], fcRij_matrix[i, k], fcRij_matrix[j, k], distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
+                                                    fcRij_matrix[i, j], fcRij_matrix[i, k], calculate_fcRij_matrix(distance_matrix[j, k], cutoff), distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
                                             if args.G5flag == True:
                                                 G5_Sum += calculate_g5(
                                                     fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
@@ -277,7 +278,6 @@ def main(args):
             G3_Data = np.asarray(G3_Data)
             G4_Data = np.asarray(G4_Data)
             G5_Data = np.asarray(G5_Data)
-            print atom_type, G1_Data.shape, G2_Data.shape, G3_Data.shape, G4_Data.shape, G5_Data.shape
             G_Master_Data = np.concatenate((G1_Data, G2_Data, G3_Data, G4_Data, G5_Data), axis =0)
             All_G_Data[atom_type][counter_dict[atom_type]] = G_Master_Data
             counter_dict[atom_type] += 1
