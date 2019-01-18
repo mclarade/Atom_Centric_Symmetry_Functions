@@ -53,7 +53,12 @@ def calculate_g2(fcRij, distance, gausswidth, radial_distance):
     '''
     Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
     '''
+    gausswidth = np.asarray(gausswidth).reshape(-1,1,1)
+    radial_distance = np.asarray(radial_distance).reshape(-1, 1)
+    #print gausswidth.shape, radial_distance.shape
     G2 = np.exp(-gausswidth * (distance - radial_distance) ** 2) * fcRij
+    print G2
+    #TODO: Figure out which row/colum/page refers to which input
     return G2
 
 
@@ -62,6 +67,8 @@ def calculate_g3(fcRij, distance, period_length):
     Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
     '''
     G3 = 0
+    period_length = np.asarray(period_length)
+    period_length.reshape(-1,1)
     G3 += np.cos(distance * period_length) * fcRij
     return G3
 
@@ -218,15 +225,16 @@ def main(args):
         #cycle through central atoms
         for i in range(0, len(distance_matrix)):
             if args.G1flag == True:
-                G1_Data = []
+                G1_Array = []
             if args.G2flag == True:
-                G2_Data = []
+                G2_Array = []
             if args.G3flag == True:
-                G3_Data = []
+                G3_Array = []
             if args.G4flag == True:
                 G4_Data = []
             if args.G5flag == True:
                 G5_Data = []
+            i_distances = np.ma.masked_less_equal(distance_matrix[i], 1e-7)
             #retain atom label for central atom
             atom_type = filter(lambda x: not x.isdigit(), labels[i])
             #TODO: Pass around numpy array for operations instead of doing operations on single numbers
@@ -237,19 +245,15 @@ def main(args):
             for cutoff in params['cutoff']:
                 fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
                 if args.G1flag == True:
-                    G1_Row = calculate_g1(fcRij_matrix[i])
-                    G1_Data.append(np.sum(G1_Row))
+                    G1_Row = calculate_g1(
+                        fcRij_matrix[i])
+                    G1_Array.append(np.sum(G1_Row))
                 if args.G2flag == True:
-                    for width in params['gausswidth']:
-                        for distance in params['radial_distance']:
-                            G2_Row = calculate_g2(
-                                fcRij_matrix[i], distance_matrix[i], width, distance)
-                            G2_Data.append(np.sum(G2_Row))
+                    G2_Array = calculate_g2(
+                        fcRij_matrix[i], i_distances, params['gausswidth'], params['radial_distance'])
                 if args.G3flag == True:
-                    for period in params['period_length']:
-                        G3_Row = calculate_g3(
-                            fcRij_matrix[i], distance_matrix[i], period)
-                        G3_Data.append(np.sum(G3_Row))
+                    G3_Row = calculate_g3(
+                        fcRij_matrix[i], i_distances, params['period_length'])
                 if args.G4flag == True or args.G5flag == True:
                     for value in params['lambda_value']:
                         for resolution in params['angular_resolution']:
@@ -273,12 +277,9 @@ def main(args):
                                                     fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
                                 G4_Data.append(G4_Sum)
                                 G5_Data.append(G5_Sum)
-            G1_Data = np.asarray(G1_Data)
-            G2_Data = np.asarray(G2_Data)
-            G3_Data = np.asarray(G3_Data)
             G4_Data = np.asarray(G4_Data)
             G5_Data = np.asarray(G5_Data)
-            G_Master_Data = np.concatenate((G1_Data, G2_Data, G3_Data, G4_Data, G5_Data), axis =0)
+            #G_Master_Data = np.concatenate((G1_Array, G2_Array, G3_Array, G4_Data, G5_Data), axis=0)
             All_G_Data[atom_type][counter_dict[atom_type]] = G_Master_Data
             counter_dict[atom_type] += 1
         for intfile in wavefunction:
