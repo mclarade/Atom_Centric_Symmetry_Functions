@@ -54,7 +54,7 @@ def radial_weight_calculator(fcRij, distance, atom_charge_j, gausswidth):
     return rad_weight
 
 
-def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = false):
+def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = False):
     #TODO: think of better vairable name than charge_calc
     if alternative_charge_calc:
         charge_calc = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
