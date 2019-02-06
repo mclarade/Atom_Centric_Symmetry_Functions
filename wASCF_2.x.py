@@ -16,6 +16,15 @@ def str2bool(string):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+
+def label_to_charge(label, AtomInputList):
+    """
+    label_to_charge takes in atom label and returns atom charge
+    """
+    if label in AtomInputList.keys():
+        return AtomInputList[label][1]
+
+
 def file_list_builder():
     '''
     This function takes in the names of all of the files to be used and stores them in lists
@@ -39,6 +48,24 @@ def calculate_fcRij_matrix(distance_matrix, cutoff):
     fcRij_matrix[distance_matrix == 0] = 0
     return fcRij_matrix
 
+
+def radial_weight_calculator(fcRij, distance, atom_charge_j, gausswidth):
+    rad_weight = (atom_charge_j) * np.exp(-gausswidth * (distance - gausswidth) ** 2) * fcRij
+    return rad_weight
+
+
+def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = false):
+    #TODO: think of better vairable name than charge_calc
+    if alternative_charge_calc:
+        charge_calc = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
+    else:
+        charge_calc = atom_charge_j * atom_charge_k
+    ang_weight = ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
+                charge_calc * 2 ** (1 - angular_resolution) * 
+                np.exp(-gausswidth*(distance_ij-angular_resolution)) * 
+                np.exp(-gausswidth*(distance_ik-angular_resolution)) *
+                np.exp(-gausswidth*(distance_jk-angular_resolution)) *
+                fcRij * fcRik * fcRjk)
 
 # redundant, but left in for clarity
 def calculate_g1(fcRij):
@@ -66,34 +93,34 @@ def calculate_g3(fcRij, distance, period_length):
     return G3
 
 
-def calculate_g4(fcRij, fcRik, fcRjk, distance_ab, distance_ac, distance_bc, angle, lambda_value, angular_resolution, gausswidth):
+def calculate_g4(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, angle, lambda_value, angular_resolution, gausswidth):
     '''
     Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G4 = 0
     G4 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution
-           * np.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2 + distance_bc ** 2))
+           * np.exp(-gausswidth * (distance_ij ** 2 + distance_ik ** 2 + distance_jk ** 2))
            * fcRij * fcRik * fcRjk) * 2 ** (1 - angular_resolution)
     return G4
 
 
-def calculate_g5(fcRij, fcRik, distance_ab, distance_ac, angle, lambda_value, angular_resolution, gausswidth):
+def calculate_g5(fcRij, fcRik, distance_ij, distance_ik, angle, lambda_value, angular_resolution, gausswidth):
 #There are problems with the angle calculations
     '''
     Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
     '''
     G5 = 0
     G5 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
-            np.exp(-gausswidth * (distance_ab ** 2 + distance_ac ** 2)) * fcRij * fcRik
+            np.exp(-gausswidth * (distance_ij ** 2 + distance_ik ** 2)) * fcRij * fcRik
             * 2 ** (1 - angular_resolution))
     return G5
 
 
-def calculate_angle(distance_ab, distance_ac, distance_bc):
+def calculate_angle(distance_ij, distance_ik, distance_jk):
     """
     called by detect_and_retrieve_angle to calculate angles
     """
-    angle = np.arccos((distance_ab ** 2 + distance_ac ** 2 - distance_bc ** 2) / (2 * distance_ab * distance_ac))
+    angle = np.arccos((distance_ij ** 2 + distance_ik ** 2 - distance_jk ** 2) / (2 * distance_ij * distance_ik))
     return angle
 
 
