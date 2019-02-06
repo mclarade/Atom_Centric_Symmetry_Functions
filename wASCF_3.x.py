@@ -54,18 +54,18 @@ def radial_weight_calculator(fcRij, distance, atom_charge_j, gausswidth):
     return rad_weight
 
 
-def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = false):
+def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = False):
     #TODO: think of better vairable name than charge_calc
     if alternative_charge_calc:
         charge_calc = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
     else:
         charge_calc = atom_charge_j * atom_charge_k
     ang_weight = ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
-                charge_calc * 2 ** (1 - angular_resolution)) * 
+                charge_calc * 2 ** (1 - angular_resolution) * 
                 np.exp(-gausswidth*(distance_ij-angular_resolution)) * 
                 np.exp(-gausswidth*(distance_ik-angular_resolution)) *
                 np.exp(-gausswidth*(distance_jk-angular_resolution)) *
-                fcRij * fcRik * fcRjk,
+                fcRij * fcRik * fcRjk)
 
 # redundant, but left in for clarity
 def calculate_g1(fcRij):
