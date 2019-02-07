@@ -226,7 +226,7 @@ def save_energy_data(energy_dict):
         energy_out = np.asarray(energy_dict[key])
         if args.use_alt_ang_weight and args.use_weights:
             np.save(key+"_wASCFaft", energy_out)
-        elif args.use_weights
+        elif args.use_weights:
             np.save(key+"_wASCF", energy_out)
         else:
             np.save(key+"_ASCF", energy_out)   
@@ -237,7 +237,7 @@ def save_g_values(symm_data):
         symm_out =  np.asarray(symm_data[key])
         if args.use_alt_ang_weight and args.use_weights:
             np.save(key+"_wASCFaft", symm_out)
-        elif args.use_weights
+        elif args.use_weights:
             np.save(key+"_wASCF", symm_out)
         else:
             np.save(key+"_ASCF", symm_out)     
