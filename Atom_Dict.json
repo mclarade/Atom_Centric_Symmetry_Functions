@@ -1,6 +1,6 @@
 {
-"H": "Hydrogen", 
-"C": "Carbon", 
-"N": "Nitgrogen", 
-"O": "Oxygen"
+"H": ["Hydrogen", 1], 
+"C": ["Carbon", 6],
+"N": ["Nitgrogen", 7],
+"O": ["Oxygen", 8]
 }

@@ -17,12 +17,16 @@ def str2bool(string):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def label_to_charge(label, AtomInputList):
+def label_to_charge(label, atom_dict):
     """
     label_to_charge takes in atom label and returns atom charge
     """
-    if label in AtomInputList.keys():
-        return AtomInputList[label][1]
+    label = ''.join([i for i in label if not i.isdigit()])
+    try:
+        print atom_dict[label]
+        return atom_dict[label][1]
+    except:
+        raise('Unrecognized atom detected in database, please include it in the Atom_Dict.json file')
 
 
 def file_list_builder():
@@ -49,25 +53,25 @@ def calculate_fcRij_matrix(distance_matrix, cutoff):
     return fcRij_matrix
 
 
-def radial_weight_calculator(fcRij, distance, atom_charge_j, gausswidth):
-    rad_weight = (atom_charge_j) * np.exp(-gausswidth * (distance - gausswidth) ** 2) * fcRij
+#Redundant but left in for clarity
+def radial_weight_calculator(atom_charge_j, atom_dict):
+    rad_weight = label_to_charge(atom_charge_j, atom_dict)
+    print rad_weight
     return rad_weight
 
 
-def angular_weight_calculator(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, atom_charge_j, atom_charge_k, gausswidth, angular_resolution, lambda_value, alternative_charge_calc = False):
-    #TODO: think of better vairable name than charge_calc
-    if alternative_charge_calc:
-        charge_calc = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
+def angular_weight_calculator(atom_label_j, atom_label_k, alternative_calc = False):
+    #TODO: think of better vairable name than ang_weight
+    atom_charge_j = label_to_charge(atom_label_j)
+    atom_charge_k = label_to_charge(atom_label_k)
+    if alternative_calc:
+        ang_weight = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
     else:
-        charge_calc = atom_charge_j * atom_charge_k
-    ang_weight = ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
-                charge_calc * 2 ** (1 - angular_resolution) * 
-                np.exp(-gausswidth*(distance_ij-angular_resolution)) * 
-                np.exp(-gausswidth*(distance_ik-angular_resolution)) *
-                np.exp(-gausswidth*(distance_jk-angular_resolution)) *
-                fcRij * fcRik * fcRjk)
+        ang_weight = atom_charge_j * atom_charge_k
+    return ang_weight
 
-# redundant, but left in for clarity
+    
+#Redundant but left in for clarity
 def calculate_g1(fcRij):
     '''
     Sums up fcRij to make G1 for an atom, see (arxiv link)
@@ -244,6 +248,14 @@ def main(args):
         labels, distance_matrix = retrieve_coordinates(wavefunction, params)
         #cycle through central atoms
         for i in range(0, len(distance_matrix)):
+            if args.use_weights:
+                rad_weights = []
+                for atom_label in labels:
+                    rad_weights.append(radial_weight_calculator(atom_label, AtomInputList))
+                rad_weights = np.asarray(rad_weights)
+            #This is to simplify code, so there isn't an if statement for each G# function
+            else:
+                rad_weights = np.ones(len(labels))
             if args.G1flag == True:
                 G1_Data = []
             if args.G2flag == True:
@@ -259,23 +271,27 @@ def main(args):
             #TODO: Pass around numpy array for operations instead of doing operations on single numbers
             if atom_type not in All_G_Data.keys():
                 raise Exception(
-                    'Unrecognized atom detected in database, please include it in the input dictionary using the -a or --atoms flag')
+                    'Unrecognized atom detected in database, please include it in the Atom_Dict.json file')
             #cycle through cutoff values
             for cutoff in params['cutoff']:
                 fcRij_matrix = calculate_fcRij_matrix(distance_matrix, cutoff)
                 if args.G1flag == True:
                     G1_Row = calculate_g1(fcRij_matrix[i])
+                    if args.use_weights:
+                        G1_Row = G1_Row * rad_weights
                     G1_Data.append(np.sum(G1_Row))
                 if args.G2flag == True:
                     for width in params['gausswidth']:
                         for distance in params['radial_distance']:
                             G2_Row = calculate_g2(
                                 fcRij_matrix[i], distance_matrix[i], width, distance)
+                            G2_Row = G2_Row * rad_weights
                             G2_Data.append(np.sum(G2_Row))
                 if args.G3flag == True:
                     for period in params['period_length']:
                         G3_Row = calculate_g3(
                             fcRij_matrix[i], distance_matrix[i], period)
+                        G3_Row = G3_Row  * rad_weights
                         G3_Data.append(np.sum(G3_Row))
                 if args.G4flag == True or args.G5flag == True:
                     for value in params['lambda_value']:
@@ -291,12 +307,16 @@ def main(args):
                                         elif distance_matrix[i,k] < 1e-7 or distance_matrix[i,k] >= cutoff or distance_matrix[i,j] < 1e-7 or distance_matrix[i,j] > cutoff:
                                             pass
                                         else:
+                                            if args.use_weights:
+                                                ang_weight = angular_weight_calculator(labels[j], labels[k])
+                                            else:
+                                                ang_weight = 1
                                             angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
                                             if args.G4flag == True:
-                                                G4_Sum +=  calculate_g4(
+                                                G4_Sum +=  ang_weight * calculate_g4(
                                                     fcRij_matrix[i, j], fcRij_matrix[i, k], calculate_fcRij_matrix(distance_matrix[j, k], cutoff), distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k], angle, value, resolution, width)
                                             if args.G5flag == True:
-                                                G5_Sum += calculate_g5(
+                                                G5_Sum += ang_weight * calculate_g5(
                                                     fcRij_matrix[i, j], fcRij_matrix[i, k], distance_matrix[i, j], distance_matrix[i, k], angle, value, resolution, width)
                                 G4_Data.append(G4_Sum)
                                 G5_Data.append(G5_Sum)
@@ -350,6 +370,11 @@ if __name__ == '__main__':
     parser.add_argument('--G5',
                         dest='G5flag',
                         help='Set flag to calculate G5, default=False',
+                        type=str2bool,
+                        default=True)
+    parser.add_argument('--Weights',
+                        dest='use_weights',
+                        help='Set flag to use wASCF instead of ASCF',
                         type=str2bool,
                         default=True)
     args = parser.parse_args() 
