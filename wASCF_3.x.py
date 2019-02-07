@@ -23,7 +23,6 @@ def label_to_charge(label, atom_dict):
     """
     label = ''.join([i for i in label if not i.isdigit()])
     try:
-        print atom_dict[label]
         return atom_dict[label][1]
     except:
         raise('Unrecognized atom detected in database, please include it in the Atom_Dict.json file')
@@ -60,10 +59,9 @@ def radial_weight_calculator(atom_charge_j, atom_dict):
     return rad_weight
 
 
-def angular_weight_calculator(atom_label_j, atom_label_k, alternative_calc = False):
-    #TODO: think of better vairable name than ang_weight
-    atom_charge_j = label_to_charge(atom_label_j)
-    atom_charge_k = label_to_charge(atom_label_k)
+def angular_weight_calculator(atom_label_j, atom_label_k, atom_dict, alternative_calc = False):
+    atom_charge_j = label_to_charge(atom_label_j, atom_dict)
+    atom_charge_k = label_to_charge(atom_label_k, atom_dict)
     if alternative_calc:
         ang_weight = atom_charge_j * atom_charge_k / (atom_charge_j + atom_charge_k)
     else:
@@ -74,7 +72,7 @@ def angular_weight_calculator(atom_label_j, atom_label_k, alternative_calc = Fal
 #Redundant but left in for clarity
 def calculate_g1(fcRij):
     '''
-    Sums up fcRij to make G1 for an atom, see (arxiv link)
+    Sums up fcRij to make G1 for an atom, see (https://doi.org/10.1063/1.3553717)
     '''
     G1 = fcRij
     return G1
@@ -82,7 +80,7 @@ def calculate_g1(fcRij):
 
 def calculate_g2(fcRij, distance, gausswidth, radial_distance):
     '''
-    Takes in fcRij and distances, calculates and returns G2 for an atom, see (arxiv link)
+    Takes in fcRij and distances, calculates and returns G2 for an atom, see (https://doi.org/10.1063/1.3553717)
     '''
     G2 = np.exp(-gausswidth * (distance - radial_distance) ** 2) * fcRij
     return G2
@@ -90,7 +88,7 @@ def calculate_g2(fcRij, distance, gausswidth, radial_distance):
 
 def calculate_g3(fcRij, distance, period_length):
     '''
-    Takes in fcRij and distances, calculates and returns G3 for an atom, see (arxiv link)
+    Takes in fcRij and distances, calculates and returns G3 for an atom, see (https://doi.org/10.1063/1.3553717)
     '''
     G3 = 0
     G3 += np.cos(distance * period_length) * fcRij
@@ -99,7 +97,7 @@ def calculate_g3(fcRij, distance, period_length):
 
 def calculate_g4(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, angle, lambda_value, angular_resolution, gausswidth):
     '''
-    Calculates and returns G4 for an atom, takes in distances and list of angles see (arxiv link)
+    Calculates and returns G4 for an atom, takes in distances and list of angles see (https://doi.org/10.1063/1.3553717)
     '''
     G4 = 0
     G4 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution
@@ -111,7 +109,7 @@ def calculate_g4(fcRij, fcRik, fcRjk, distance_ij, distance_ik, distance_jk, ang
 def calculate_g5(fcRij, fcRik, distance_ij, distance_ik, angle, lambda_value, angular_resolution, gausswidth):
 #There are problems with the angle calculations
     '''
-    Calculates and returns G5 for an atom, takes in distances and list of angles see (arxiv link)
+    Calculates and returns G5 for an atom, takes in distances and list of angles see (https://doi.org/10.1063/1.3553717)
     '''
     G5 = 0
     G5 += ((1 + lambda_value * np.cos(angle)) ** angular_resolution * 
@@ -226,13 +224,23 @@ def initialize_numpy_bins(AtomInputList, OutputDimension2):
 def save_energy_data(energy_dict):
     for key in energy_dict.keys():
         energy_out = np.asarray(energy_dict[key])
-        np.save(key+"_energy", energy_out)
+        if args.use_alt_ang_weight and args.use_weights:
+            np.save(key+"_wASCFaft", energy_out)
+        elif args.use_weights
+            np.save(key+"_wASCF", energy_out)
+        else:
+            np.save(key+"_ASCF", energy_out)   
         print(key, energy_out)
 
 def save_g_values(symm_data):
     for key in symm_data.keys():
         symm_out =  np.asarray(symm_data[key])
-        np.save(key+"_symm", symm_out)
+        if args.use_alt_ang_weight and args.use_weights:
+            np.save(key+"_wASCFaft", symm_out)
+        elif args.use_weights
+            np.save(key+"_wASCF", symm_out)
+        else:
+            np.save(key+"_ASCF", symm_out)     
         print(key, symm_out.shape)
 
 def main(args):
@@ -268,7 +276,6 @@ def main(args):
                 G5_Data = []
             #retain atom label for central atom
             atom_type = filter(lambda x: not x.isdigit(), labels[i])
-            #TODO: Pass around numpy array for operations instead of doing operations on single numbers
             if atom_type not in All_G_Data.keys():
                 raise Exception(
                     'Unrecognized atom detected in database, please include it in the Atom_Dict.json file')
@@ -308,7 +315,7 @@ def main(args):
                                             pass
                                         else:
                                             if args.use_weights:
-                                                ang_weight = angular_weight_calculator(labels[j], labels[k])
+                                                ang_weight = angular_weight_calculator(labels[j], labels[k], AtomInputList, args.use_alt_ang_weight)
                                             else:
                                                 ang_weight = 1
                                             angle = calculate_angle(distance_matrix[i, j], distance_matrix[i, k], distance_matrix[j, k])
@@ -338,7 +345,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs. Note that each wavefunction must have a unique name, or behavior may become unpredictable')
+    parser = argparse.ArgumentParser(description='This script automates the conversion of wfn and int files into atom-centric symmetry functions for use with neural network inputs. Note that each wavefunction must have a unique name, or behavior may become unpredictable. Please refer to https://doi.org/10.1063/1.3553717 for more details')
     parser.add_argument('-x', '--extension',
                         dest='InputExtension',
                         help='Extension of aimpac output scripts',
@@ -349,33 +356,38 @@ if __name__ == '__main__':
                         default='.wfn')
     parser.add_argument('--G1',
                         dest='G1flag',
-                        help='Set flag to calculate G1, default=True',
+                        help='Set flag to calculate G1, see https://doi.org/10.1063/1.3553717 default=True',
                         type=str2bool,
                         default=True)
     parser.add_argument('--G2',
                         dest='G2flag',
-                        help='Set flag to calculate G2, default=False',
+                        help='Set flag to calculate G2, see https://doi.org/10.1063/1.3553717 default=True',
                         type=str2bool,
                         default=True)
     parser.add_argument('--G3',
                         dest='G3flag',
-                        help='Set flag to calculate G3, default=False',
+                        help='Set flag to calculate G3, see https://doi.org/10.1063/1.3553717 default=True',
                         type=str2bool,
                         default=True)
     parser.add_argument('--G4',
                         dest='G4flag',
-                        help='Set flag to calculate G4, default=False',
+                        help='Set flag to calculate G4, see https://doi.org/10.1063/1.3553717 default=True',
                         type=str2bool,
                         default=True)
     parser.add_argument('--G5',
                         dest='G5flag',
-                        help='Set flag to calculate G5, default=False',
+                        help='Set flag to calculate G5, see https://doi.org/10.1063/1.3553717 default=True',
                         type=str2bool,
                         default=True)
     parser.add_argument('--Weights',
                         dest='use_weights',
-                        help='Set flag to use wASCF instead of ASCF',
+                        help='Set flag to use wASCF instead of ASCF (https://doi.org/10.1063/1.5019667)',
                         type=str2bool,
                         default=True)
+    parser.add_argument('--Alt_angular_weight',
+                        dest = 'use_alt_ang_weight',
+                        #TODO: Write help text
+                        type=str2bool,
+                        default=False)
     args = parser.parse_args() 
     main(args)
