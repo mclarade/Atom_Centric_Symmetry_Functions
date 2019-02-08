@@ -55,7 +55,6 @@ def calculate_fcRij_matrix(distance_matrix, cutoff):
 #Redundant but left in for clarity
 def radial_weight_calculator(atom_charge_j, atom_dict):
     rad_weight = label_to_charge(atom_charge_j, atom_dict)
-    print rad_weight
     return rad_weight
 
 
@@ -216,7 +215,7 @@ def initialize_numpy_bins(AtomInputList, OutputDimension2):
             #look here for output dimensions
             dimension0 = total_dict[atom_type]
             array_dict[atom_type] = np.zeros((dimension0, OutputDimension2))
-    keylist = wavefunction_and_file_dict.values()
+    keylist = list(wavefunction_and_file_dict.values())
     keylist.sort()
     return keylist, array_dict, counter_dict
 
@@ -275,8 +274,9 @@ def main(args):
             if args.G5flag == True:
                 G5_Data = []
             #retain atom label for central atom
-            atom_type = filter(lambda x: not x.isdigit(), labels[i])
-            if atom_type not in All_G_Data.keys():
+            atom_type = ''.join([n for n in labels[i] if not n.isdigit()])
+            print(All_G_Data.keys())
+            if atom_type not in list(All_G_Data.keys()):
                 raise Exception(
                     'Unrecognized atom detected in database, please include it in the Atom_Dict.json file')
             #cycle through cutoff values
